@@ -1,0 +1,255 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============ CORE ENTITIES ============
+
+model Farm {
+  id          String   @id @default(cuid())
+  name        String
+  location    String
+  address     String?
+  phone       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  flocks      BirdFlock[]
+  eggCollections DailyEggCollection[]
+  feedRecords   FeedRecord[]
+  mortalityRecords BirdMortality[]
+  healthChecks   HealthCheck[]
+  vaccinations   Vaccination[]
+  treatments     Treatment[]
+  expenses       Expense[]
+}
+
+model BirdFlock {
+  id          String   @id @default(cuid())
+  farmId      String
+  name        String
+  birdType    String   // "Layer", "Broiler", "Cockerel", "Turkeys"
+  breed       String?
+  birdCount   Int
+  ageWeeks    Int
+  dateArrival DateTime
+  notes       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  farm        Farm     @relation(fields: [farmId], references: [id])
+  mortalityRecords BirdMortality[]
+  healthChecks   HealthCheck[]
+  vaccinations   Vaccination[]
+  treatments     Treatment[]
+}
+
+model Staff {
+  id          String   @id @default(cuid())
+  name        String
+  role        String   // "CEO", "SALES", "FARM_HAND", "ACCOUNTANT", "VET"
+  phone       String?
+  farmId      String?
+  email       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Customer {
+  id          String   @id @default(cuid())
+  name        String
+  phone       String?
+  location    String?
+  customerType String  // "Wholesale", "Retail", "Walk-in"
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  eggSales    EggSale[]
+  birdSales   BirdSale[]
+}
+
+// ============ DAILY PRODUCTION ============
+
+model DailyEggCollection {
+  id          String   @id @default(cuid())
+  farmId      String
+  date        DateTime
+  crateCount  Int
+  eggsPerCrate Int      @default(30)
+  brokenCount Int      @default(0)
+  soiledCount Int      @default(0)
+  notes       String?
+  recordedBy  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  farm        Farm     @relation(fields: [farmId], references: [id])
+}
+
+model BirdMortality {
+  id          String   @id @default(cuid())
+  flockId     String
+  farmId      String
+  date        DateTime
+  count       Int
+  cause       String?  // "Disease", "Predator", "Heat stress", "Unknown"
+  notes       String?
+  recordedBy  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  flock       BirdFlock @relation(fields: [flockId], references: [id])
+  farm        Farm     @relation(fields: [farmId], references: [id])
+}
+
+model FeedRecord {
+  id          String   @id @default(cuid())
+  farmId      String
+  date        DateTime
+  feedType    String   // "Layer mash", "Broiler starter", "Grower mash", etc.
+  bagsUsed    Float
+  bagWeightKg Float    @default(50)
+  costPerBag  Float
+  supplier    String?
+  notes       String?
+  recordedBy  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  farm        Farm     @relation(fields: [farmId], references: [id])
+}
+
+// ============ SALES ============
+
+model EggSale {
+  id              String   @id @default(cuid())
+  customerId      String?
+  date            DateTime
+  crateCount      Int
+  eggsPerCrate    Int      @default(30)
+  pricePerCrate   Float
+  totalAmount     Float
+  paymentStatus   String   @default("Paid") // "Paid", "Partial", "Unpaid"
+  amountPaid      Float    @default(0)
+  farmId          String
+  recordedBy      String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  customer        Customer? @relation(fields: [customerId], references: [id])
+}
+
+model BirdSale {
+  id              String   @id @default(cuid())
+  customerId      String?
+  date            DateTime
+  quantity        Int
+  weightPerBirdKg Float?
+  pricePerBird    Float
+  totalAmount     Float
+  paymentStatus   String   @default("Paid") // "Paid", "Partial", "Unpaid"
+  amountPaid      Float    @default(0)
+  farmId          String
+  recordedBy      String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  customer        Customer? @relation(fields: [customerId], references: [id])
+}
+
+// ============ FINANCIAL ============
+
+model Expense {
+  id          String   @id @default(cuid())
+  farmId      String
+  date        DateTime
+  category    String   // "Feed", "Medication", "Utilities", "Labour", "Transport", "Equipment", "Maintenance", "Other"
+  description String
+  amount      Float
+  paymentStatus String @default("Paid") // "Paid", "Unpaid", "Partial"
+  dueDate     DateTime?
+  paidDate    DateTime?
+  vendor      String?
+  receiptNo   String?
+  recordedBy  String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  farm        Farm     @relation(fields: [farmId], references: [id])
+}
+
+// ============ HEALTH & VET ============
+
+model HealthCheck {
+  id          String   @id @default(cuid())
+  flockId     String
+  farmId      String
+  date        DateTime
+  overallStatus String  // "Good", "Fair", "Poor", "Critical"
+  symptoms    String?  // comma-separated symptoms
+  temperature Float?   // average body temp
+  mortalityCount Int?
+  waterIntakeL Float?  // daily water intake
+  feedIntakeKg  Float? // daily feed intake
+  bodyCondition  String? // "Good", "Underweight", "Overweight"
+  recommendations String?
+  vetOfficer  String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  flock       BirdFlock @relation(fields: [flockId], references: [id])
+  farm        Farm     @relation(fields: [farmId], references: [id])
+}
+
+model Vaccination {
+  id          String   @id @default(cuid())
+  flockId     String
+  farmId      String
+  vaccineName String   // "Newcastle", "Gumboro", "Fowl Pox", "Fowl Typhoid", etc.
+  scheduledDate DateTime
+  administeredDate DateTime?
+  status      String   @default("Scheduled") // "Scheduled", "Completed", "Missed", "Overdue"
+  method      String?  // "Eye drop", "Drinking water", "Injection", "Spray"
+  dosage      String?
+  batchNo     String?
+  supplier    String?
+  cost        Float?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  flock       BirdFlock @relation(fields: [flockId], references: [id])
+  farm        Farm     @relation(fields: [farmId], references: [id])
+}
+
+model Treatment {
+  id          String   @id @default(cuid())
+  flockId     String
+  farmId      String
+  date        DateTime
+  diagnosis   String
+  medication  String
+  dosage      String?
+  duration    String?  // "3 days", "5 days", etc.
+  cost        Float?
+  vetOfficer  String?
+  status      String   @default("Ongoing") // "Ongoing", "Completed"
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  flock       BirdFlock @relation(fields: [flockId], references: [id])
+  farm        Farm     @relation(fields: [farmId], references: [id])
+}

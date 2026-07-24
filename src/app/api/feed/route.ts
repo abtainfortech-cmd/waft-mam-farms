@@ -1,0 +1,37 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+
+export async function GET(request: NextRequest) {
+  const farmId = request.nextUrl.searchParams.get('farmId')
+  const dateFrom = request.nextUrl.searchParams.get('dateFrom')
+  const dateTo = request.nextUrl.searchParams.get('dateTo')
+
+  const where: Record<string, unknown> = {}
+  if (farmId) where.farmId = farmId
+  if (dateFrom || dateTo) {
+    where.date = {}
+    if (dateFrom) (where.date as Record<string, unknown>).gte = new Date(dateFrom)
+    if (dateTo) (where.date as Record<string, unknown>).lte = new Date(dateTo)
+  }
+
+  try {
+    const records = await db.feedRecord.findMany({
+      where,
+      include: { farm: true },
+      orderBy: { date: 'desc' },
+    })
+    return NextResponse.json(records)
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to fetch feed records' }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const record = await db.feedRecord.create({ data: body })
+    return NextResponse.json(record, { status: 201 })
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to create feed record' }, { status: 500 })
+  }
+}
