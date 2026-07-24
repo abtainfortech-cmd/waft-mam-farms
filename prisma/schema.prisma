@@ -54,9 +54,23 @@ model Staff {
   id          String   @id @default(cuid())
   name        String
   role        String   // "CEO", "SALES", "FARM_HAND", "ACCOUNTANT", "VET"
+  username    String   @unique
+  password    String
   phone       String?
   farmId      String?
   email       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Announcement {
+  id          String   @id @default(cuid())
+  title       String
+  message     String
+  priority    String   @default("Normal") // "Normal", "Important", "Urgent"
+  targetRoles String   @default("ALL") // comma-separated: "ALL" or "CEO,SALES,FARM_HAND"
+  createdBy   String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

@@ -1,20 +1,20 @@
 'use client'
 
 import { useAppStore } from '@/store/app'
-import { RoleSelection } from '@/components/farm/RoleSelection'
+import { LoginScreen } from '@/components/farm/LoginScreen'
 import { AppShell } from '@/components/farm/AppShell'
 import { useEffect } from 'react'
 
 export default function Home() {
-  const currentRole = useAppStore((s) => s.currentRole)
+  const isLoggedIn = useAppStore((s) => s.isLoggedIn)
 
   // Seed data on first load
   useEffect(() => {
     fetch('/api/seed', { method: 'POST' })
   }, [])
 
-  if (!currentRole) {
-    return <RoleSelection />
+  if (!isLoggedIn) {
+    return <LoginScreen />
   }
 
   return <AppShell />

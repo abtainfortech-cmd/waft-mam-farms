@@ -3,11 +3,12 @@ import { db } from '@/lib/db'
 
 export async function POST() {
   try {
-    // Check if data already exists
+    // Check if data already exists - still seed staff and announcements if missing
     const existingFarms = await db.farm.count()
-    if (existingFarms > 0) {
-      return NextResponse.json({ message: 'Data already seeded', count: existingFarms })
-    }
+    const existingStaff = await db.staff.count()
+    const existingAnnouncements = await db.announcement.count()
+
+    if (existingFarms === 0) {
 
     // Create Farms
     const farm1 = await db.farm.create({
@@ -266,10 +267,12 @@ export async function POST() {
     // Create treatments
     for (let i = 0; i < 5; i++) {
       const date = new Date(now.getTime() - i * 6 * 24 * 60 * 60 * 1000)
+      const farmForT = await db.farm.findFirst({ where: { name: 'Kumasi Main Farm' } })
+      const flockForT = createdFlocks[Math.floor(Math.random() * createdFlocks.length)]
       await db.treatment.create({
         data: {
-          flockId: createdFlocks[Math.floor(Math.random() * createdFlocks.length)].id,
-          farmId: [farm1.id, farm2.id, farm3.id][Math.floor(Math.random() * 3)],
+          flockId: flockForT.id,
+          farmId: farmForT?.id || createdFlocks[0].farmId,
           date: date.toISOString(),
           diagnosis: ['Respiratory infection', 'Coccidiosis', 'Worm infestation', 'Egg drop syndrome', 'Heat stress'][i],
           medication: ['Oxytetracycline', 'Sulphadimidine', 'Piperazine', 'Vitamin supplement', 'Electrolytes'][i],
@@ -282,11 +285,53 @@ export async function POST() {
       })
     }
 
+    } // end of if (existingFarms === 0)
+
+    // Seed staff accounts (always - idempotent check)
+    if (existingStaff === 0) {
+      const farm1Ref = await db.farm.findFirst({ where: { name: 'Kumasi Main Farm' } })
+      await db.staff.create({ data: { name: 'CEO (Farm Owner)', role: 'CEO', username: 'ceo', password: 'ceo123', phone: '+233 24 123 4567' } })
+      await db.staff.create({ data: { name: 'Kwame Asante', role: 'SALES', username: 'sales', password: 'sales123', phone: '+233 20 555 1000' } })
+      await db.staff.create({ data: { name: 'Kofi Mensah', role: 'FARM_HAND', username: 'farmhand', password: 'farm123', phone: '+233 27 555 2000', farmId: farm1Ref?.id } })
+      await db.staff.create({ data: { name: 'Akua Boateng', role: 'ACCOUNTANT', username: 'accountant', password: 'acc123', phone: '+233 24 555 3000' } })
+      await db.staff.create({ data: { name: 'Dr. Yaw Mensah', role: 'VET', username: 'vet', password: 'vet123', phone: '+233 20 555 4000' } })
+    }
+
+    // Seed announcements (always - idempotent check)
+    if (existingAnnouncements === 0) {
+      await db.announcement.create({
+        data: {
+          title: 'Welcome to PoultryFarm Manager',
+          message: 'This is your central farm management system. All daily records, reports and reminders can be found here. Contact the CEO if you need help.',
+          priority: 'Normal',
+          targetRoles: 'ALL',
+          createdBy: 'ceo',
+        },
+      })
+      await db.announcement.create({
+        data: {
+          title: 'Monthly Staff Meeting',
+          message: 'There will be a monthly review meeting on the last Friday of every month at Kumasi Main Farm. All staff are expected to attend. Please prepare your farm reports.',
+          priority: 'Important',
+          targetRoles: 'ALL',
+          createdBy: 'ceo',
+        },
+      })
+      await db.announcement.create({
+        data: {
+          title: 'Feed Price Update',
+          message: 'Layer mash price has increased to GHS 200 per 50kg bag effective from this week. Adjust all feed records accordingly.',
+          priority: 'Urgent',
+          targetRoles: 'FARM_HAND,ACCOUNTANT',
+          createdBy: 'ceo',
+        },
+      })
+    }
+
     return NextResponse.json({
       message: 'Sample data seeded successfully',
-      farms: 3,
-      flocks: flocks.length,
-      customers: customers.length,
+      staff: existingStaff > 0 ? existingStaff : 5,
+      announcements: existingAnnouncements > 0 ? existingAnnouncements : 3,
     })
   } catch (error) {
     console.error('Seed error:', error)

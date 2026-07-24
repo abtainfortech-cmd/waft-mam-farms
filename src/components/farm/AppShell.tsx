@@ -17,8 +17,12 @@ import { FarmHandDashboard } from '@/components/farm/FarmHandDashboard'
 import { SalesDashboard } from '@/components/farm/SalesDashboard'
 import { AccountantDashboard } from '@/components/farm/AccountantDashboard'
 import { VetDashboard } from '@/components/farm/VetDashboard'
+import { AnnouncementPane, AnnouncementManager } from '@/components/farm/AnnouncementPane'
+import { SOPSection } from '@/components/farm/SOPSection'
+import { PasswordResetPanel } from '@/components/farm/PasswordResetPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useEffect, useState, useCallback } from 'react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useEffect, useState } from 'react'
 
 const roleConfig: Record<Role, { label: string; icon: React.ReactNode; color: string }> = {
   CEO: { label: 'CEO', icon: <Crown className="h-4 w-4" />, color: 'text-amber-600' },
@@ -29,7 +33,7 @@ const roleConfig: Record<Role, { label: string; icon: React.ReactNode; color: st
 }
 
 function RoleSidebar() {
-  const { currentRole, setRole, selectedFarmId, setFarm, sidebarOpen, setSidebarOpen, toggleSidebar } = useAppStore()
+  const { currentRole, currentUser, logout, selectedFarmId, setFarm, sidebarOpen, setSidebarOpen, toggleSidebar } = useAppStore()
   const [farms, setFarms] = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
@@ -56,7 +60,7 @@ function RoleSidebar() {
 
       <Separator />
 
-      {/* Current Role */}
+      {/* Current Role & User */}
       <div className="p-3">
         {currentRole && (
           <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
@@ -64,8 +68,8 @@ function RoleSidebar() {
               {roleConfig[currentRole].icon}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-medium truncate">{roleConfig[currentRole].label}</p>
-              <p className="text-[10px] text-gray-500">Current Role</p>
+              <p className="text-sm font-medium truncate">{currentUser?.name || roleConfig[currentRole].label}</p>
+              <p className="text-[10px] text-gray-500">{roleConfig[currentRole].label}</p>
             </div>
           </div>
         )}
@@ -87,24 +91,26 @@ function RoleSidebar() {
 
       <Separator />
 
-      {/* Quick Role Switch */}
-      <div className="px-3 py-2">
-        <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Switch Role</p>
-        <div className="space-y-1">
-          {(Object.keys(roleConfig) as Role[]).map((role) => (
-            <Button
-              key={role}
-              variant={currentRole === role ? 'secondary' : 'ghost'}
-              size="sm"
-              className={`w-full justify-start h-8 text-xs gap-2 ${currentRole === role ? 'font-medium' : ''}`}
-              onClick={() => setRole(role)}
-            >
-              <span className={roleConfig[role].color}>{roleConfig[role].icon}</span>
-              {roleConfig[role].label}
-            </Button>
-          ))}
+      {/* Quick Role Switch - CEO only can see all roles */}
+      {currentRole === 'CEO' && (
+        <div className="px-3 py-2">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Switch Role</p>
+          <div className="space-y-1">
+            {(Object.keys(roleConfig) as Role[]).map((role) => (
+              <Button
+                key={role}
+                variant={currentRole === role ? 'secondary' : 'ghost'}
+                size="sm"
+                className={`w-full justify-start h-8 text-xs gap-2 ${currentRole === role ? 'font-medium' : ''}`}
+                onClick={() => setFarm(null)} // Note: CEO can switch views but stays CEO
+              >
+                <span className={roleConfig[role].color}>{roleConfig[role].icon}</span>
+                {roleConfig[role].label}
+              </Button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex-1" />
 
@@ -116,10 +122,10 @@ function RoleSidebar() {
           variant="ghost"
           size="sm"
           className="w-full justify-start h-8 text-xs gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-          onClick={() => { setRole(null); setFarm(null) }}
+          onClick={logout}
         >
           <LogOut className="h-3 w-3" />
-          Switch Account / Logout
+          Sign Out
         </Button>
       </div>
     </div>
@@ -152,15 +158,18 @@ function RoleSidebar() {
 }
 
 export function AppShell() {
-  const { currentRole, sidebarOpen } = useAppStore()
+  const { currentRole, currentUser, setRole, sidebarOpen } = useAppStore()
+
+  // Determine which view to show (CEO can preview all dashboards)
+  const viewRole = currentRole
 
   const renderDashboard = () => {
-    switch (currentRole) {
-      case 'CEO': return <CEODashboard />
-      case 'SALES': return <SalesDashboard />
-      case 'FARM_HAND': return <FarmHandDashboard />
-      case 'ACCOUNTANT': return <AccountantDashboard />
-      case 'VET': return <VetDashboard />
+    switch (viewRole) {
+      case 'CEO': return <CEOView />
+      case 'SALES': return <SalesView />
+      case 'FARM_HAND': return <FarmHandView />
+      case 'ACCOUNTANT': return <AccountantView />
+      case 'VET': return <VetView />
       default: return null
     }
   }
@@ -181,7 +190,7 @@ export function AppShell() {
               <div className={`w-6 h-6 rounded flex items-center justify-center ${roleConfig[currentRole].color} bg-gray-100`}>
                 {roleConfig[currentRole].icon}
               </div>
-              <span className="text-xs font-medium">{roleConfig[currentRole].label}</span>
+              <span className="text-xs font-medium">{currentUser?.name || roleConfig[currentRole].label}</span>
             </div>
           </header>
         )}
@@ -190,5 +199,83 @@ export function AppShell() {
         </div>
       </main>
     </div>
+  )
+}
+
+// Wrapped views with Announcement pane
+function CEOView() {
+  return (
+    <Tabs defaultValue="dashboard" className="w-full">
+      <TabsList className="grid grid-cols-3 w-full mb-4">
+        <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+        <TabsTrigger value="announcements">Announcements</TabsTrigger>
+        <TabsTrigger value="access">Access Control</TabsTrigger>
+      </TabsList>
+      <TabsContent value="dashboard">
+        <AnnouncementPane />
+        <div className="mt-4">
+          <CEODashboard />
+        </div>
+      </TabsContent>
+      <TabsContent value="announcements">
+        <AnnouncementManager />
+      </TabsContent>
+      <TabsContent value="access">
+        <PasswordResetPanel />
+      </TabsContent>
+    </Tabs>
+  )
+}
+
+function SalesView() {
+  return (
+    <>
+      <AnnouncementPane />
+      <div className="mt-4">
+        <SalesDashboard />
+      </div>
+    </>
+  )
+}
+
+function FarmHandView() {
+  return (
+    <Tabs defaultValue="operations" className="w-full">
+      <TabsList className="grid grid-cols-2 w-full mb-4">
+        <TabsTrigger value="operations">Daily Operations</TabsTrigger>
+        <TabsTrigger value="sop">SOP Guide</TabsTrigger>
+      </TabsList>
+      <TabsContent value="operations">
+        <AnnouncementPane />
+        <div className="mt-4">
+          <FarmHandDashboard />
+        </div>
+      </TabsContent>
+      <TabsContent value="sop">
+        <SOPSection />
+      </TabsContent>
+    </Tabs>
+  )
+}
+
+function AccountantView() {
+  return (
+    <>
+      <AnnouncementPane />
+      <div className="mt-4">
+        <AccountantDashboard />
+      </div>
+    </>
+  )
+}
+
+function VetView() {
+  return (
+    <>
+      <AnnouncementPane />
+      <div className="mt-4">
+        <VetDashboard />
+      </div>
+    </>
   )
 }
