@@ -24,12 +24,17 @@ export function LoginScreen() {
     setLoading(true)
 
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 15000)
+
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
+        signal: controller.signal,
       })
 
+      clearTimeout(timeoutId)
       const data = await res.json()
 
       if (res.ok && data.success) {
@@ -39,8 +44,12 @@ export function LoginScreen() {
         setError(data.error || 'Invalid username or password')
         toast.error('Login failed. Please check your credentials.')
       }
-    } catch {
-      setError('Network error. Please try again.')
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        setError('Request timed out. The server may be starting up — please try again.')
+      } else {
+        setError('Network error. Please check your connection and try again.')
+      }
     } finally {
       setLoading(false)
     }
