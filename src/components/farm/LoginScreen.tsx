@@ -1,14 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAppStore } from '@/store/app'
 import { toast } from 'sonner'
-import { Bird, Lock, User, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Bird, Lock, User, Eye, EyeOff, Loader2, WifiOff } from 'lucide-react'
 import { motion } from 'framer-motion'
+
+const MAX_RETRIES = 3
+const RETRY_DELAYS = [1500, 3000, 6000] // ms
 
 export function LoginScreen() {
   const login = useAppStore((s) => s.login)
@@ -17,20 +20,31 @@ export function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [retryCount, setRetryCount] = useState(0)
+  const abortRef = useRef<AbortController | null>(null)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
+    setRetryCount(0)
 
+    await attemptLogin(username, password, 0)
+  }
+
+  const attemptLogin = async (user: string, pass: string, attempt: number) => {
     try {
+      // Cancel any previous request
+      if (abortRef.current) abortRef.current.abort()
       const controller = new AbortController()
+      abortRef.current = controller
+
       const timeoutId = setTimeout(() => controller.abort(), 15000)
 
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: user, password: pass }),
         signal: controller.signal,
       })
 
@@ -40,18 +54,34 @@ export function LoginScreen() {
       if (res.ok && data.success) {
         login(data.staff)
         toast.success(`Welcome, ${data.staff.name}!`)
+        setLoading(false)
+        return
       } else {
+        // Auth failure — don't retry, just show error
         setError(data.error || 'Invalid username or password')
         toast.error('Login failed. Please check your credentials.')
+        setLoading(false)
+        return
       }
     } catch (err: any) {
       if (err.name === 'AbortError') {
         setError('Request timed out. The server may be starting up — please try again.')
-      } else {
-        setError('Network error. Please check your connection and try again.')
+        setLoading(false)
+        return
       }
-    } finally {
-      setLoading(false)
+
+      // Network error — auto-retry if attempts remain
+      if (attempt < MAX_RETRIES) {
+        setRetryCount(attempt + 1)
+        setError(`Server is starting up... Retrying (${attempt + 1}/${MAX_RETRIES})`)
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt]))
+        if (abortRef.current?.signal.aborted) return
+        await attemptLogin(user, pass, attempt + 1)
+      } else {
+        setError('Could not reach the server. The app may still be loading — please wait a moment and try again.')
+        toast.error('Network error. Please try again shortly.')
+        setLoading(false)
+      }
     }
   }
 
@@ -121,10 +151,17 @@ export function LoginScreen() {
 
               <Button type="submit" className="w-full h-11 bg-green-600 hover:bg-green-700 text-white" disabled={loading}>
                 {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Signing in...
-                  </>
+                  retryCount > 0 ? (
+                    <>
+                      <WifiOff className="h-4 w-4 mr-2 animate-pulse" />
+                      Retrying ({retryCount}/{MAX_RETRIES})...
+                    </>
+                  ) : (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Signing in...
+                    </>
+                  )
                 ) : (
                   'Sign In'
                 )}
