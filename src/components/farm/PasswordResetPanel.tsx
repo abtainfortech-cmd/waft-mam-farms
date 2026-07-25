@@ -82,7 +82,7 @@ export function PasswordResetPanel() {
     const res = await fetch('/api/staff', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName, role: newRole, username: newUsername, password: newPass }),
+      body: JSON.stringify({ name: newName, role: newRole, username: newUsername, password: newPass, isActive: true }),
     })
     if (res.ok) {
       toast.success('New staff account created!')

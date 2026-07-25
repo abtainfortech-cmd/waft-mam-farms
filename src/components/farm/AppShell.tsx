@@ -35,7 +35,7 @@ const roleConfig: Record<Role, { label: string; icon: React.ReactNode; color: st
 }
 
 function RoleSidebar() {
-  const { currentRole, currentUser, logout, selectedFarmId, setFarm, sidebarOpen, setSidebarOpen, toggleSidebar } = useAppStore()
+  const { currentRole, currentUser, logout, selectedFarmId, setFarm, sidebarOpen, setSidebarOpen, toggleSidebar, viewRole, setViewRole } = useAppStore()
   const [farms, setFarms] = useState<{ id: string; name: string; isActive: boolean }[]>([])
 
   useEffect(() => {
@@ -101,10 +101,10 @@ function RoleSidebar() {
             {(Object.keys(roleConfig) as Role[]).map((role) => (
               <Button
                 key={role}
-                variant={currentRole === role ? 'secondary' : 'ghost'}
+                variant={viewRole === role ? 'secondary' : 'ghost'}
                 size="sm"
-                className={`w-full justify-start h-8 text-xs gap-2 ${currentRole === role ? 'font-medium' : ''}`}
-                onClick={() => setFarm(null)} // Note: CEO can switch views but stays CEO
+                className={`w-full justify-start h-8 text-xs gap-2 ${viewRole === role ? 'font-medium' : ''}`}
+                onClick={() => { setViewRole(role); setFarm(null) }}
               >
                 <span className={roleConfig[role].color}>{roleConfig[role].icon}</span>
                 {roleConfig[role].label}
@@ -160,13 +160,13 @@ function RoleSidebar() {
 }
 
 export function AppShell() {
-  const { currentRole, currentUser, setRole, sidebarOpen } = useAppStore()
+  const { currentRole, currentUser, setRole, sidebarOpen, viewRole } = useAppStore()
 
   // Determine which view to show (CEO can preview all dashboards)
-  const viewRole = currentRole
+  const effectiveViewRole = viewRole || currentRole
 
   const renderDashboard = () => {
-    switch (viewRole) {
+    switch (effectiveViewRole) {
       case 'CEO': return <CEOView />
       case 'SALES': return <SalesView />
       case 'FARM_HAND': return <FarmHandView />

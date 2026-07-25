@@ -41,9 +41,11 @@ export function SalesDashboard() {
   const [eggSaleCustomerId, setEggSaleCustomerId] = useState('')
   const [eggSaleFarmId, setEggSaleFarmId] = useState(selectedFarmId || '')
   const [eggSalePayment, setEggSalePayment] = useState('Paid')
+  const [eggAmountPaid, setEggAmountPaid] = useState('')
   const [birdSaleCustomerId, setBirdSaleCustomerId] = useState('')
   const [birdSaleFarmId, setBirdSaleFarmId] = useState(selectedFarmId || '')
   const [birdSalePayment, setBirdSalePayment] = useState('Paid')
+  const [birdAmountPaid, setBirdAmountPaid] = useState('')
   const [customerType, setCustomerType] = useState('Retail')
 
   useEffect(() => {
@@ -104,13 +106,13 @@ export function SalesDashboard() {
         pricePerCrate: price,
         totalAmount: crates * price,
         paymentStatus: eggSalePayment,
-        amountPaid: eggSalePayment === 'Paid' ? crates * price : 0,
+        amountPaid: eggSalePayment === 'Paid' ? crates * price : eggSalePayment === 'Partial' ? (parseFloat(eggAmountPaid) || 0) : 0,
         farmId: eggSaleFarmId,
         recordedBy: 'Sales',
       }
       if (!data.farmId) { toast.error('Please select a farm'); return }
       const res = await fetch('/api/sales/eggs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (res.ok) { toast.success('Egg sale recorded!'); f.reset(); fetchData() }
+      if (res.ok) { toast.success('Egg sale recorded!'); f.reset(); setEggAmountPaid(''); fetchData() }
       else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to record sale') }
     } catch (err) { console.error(err); toast.error('Failed to record sale') }
   }
@@ -129,13 +131,13 @@ export function SalesDashboard() {
         pricePerBird: price,
         totalAmount: qty * price,
         paymentStatus: birdSalePayment,
-        amountPaid: birdSalePayment === 'Paid' ? qty * price : 0,
+        amountPaid: birdSalePayment === 'Paid' ? qty * price : birdSalePayment === 'Partial' ? (parseFloat(birdAmountPaid) || 0) : 0,
         farmId: birdSaleFarmId,
         recordedBy: 'Sales',
       }
       if (!data.farmId) { toast.error('Please select a farm'); return }
       const res = await fetch('/api/sales/birds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (res.ok) { toast.success('Bird sale recorded!'); f.reset(); fetchData() }
+      if (res.ok) { toast.success('Bird sale recorded!'); f.reset(); setBirdAmountPaid(''); fetchData() }
       else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to record sale') }
     } catch (err) { console.error(err); toast.error('Failed to record sale') }
   }
@@ -272,7 +274,7 @@ export function SalesDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Payment</Label>
-                  <Select value={eggSalePayment} onValueChange={setEggSalePayment}>
+                  <Select value={eggSalePayment} onValueChange={(v) => { setEggSalePayment(v); if (v !== 'Partial') setEggAmountPaid('') }}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Paid">Paid</SelectItem>
@@ -281,6 +283,12 @@ export function SalesDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
+                {eggSalePayment === 'Partial' && (
+                  <div className="col-span-2 md:col-span-1">
+                    <Label className="text-xs">Amount Paid (GHS)</Label>
+                    <Input type="number" min="0" step="0.5" value={eggAmountPaid} onChange={e => setEggAmountPaid(e.target.value)} placeholder="e.g. 500" className="h-9 text-sm" />
+                  </div>
+                )}
                 <div className="flex items-end col-span-2 md:col-span-3">
                   <Button type="submit" className="w-full md:w-auto h-9"><Plus className="h-3 w-3 mr-1" />Record Sale</Button>
                 </div>
@@ -308,6 +316,11 @@ export function SalesDashboard() {
                         <Badge variant={s.paymentStatus === 'Paid' ? 'default' : 'destructive'} className="text-[10px]">
                           {s.paymentStatus}
                         </Badge>
+                        {s.paymentStatus !== 'Paid' && s.totalAmount > 0 && (
+                          <p className="text-[10px] text-red-600 mt-0.5">
+                            Balance: {formatGHS(s.totalAmount - s.amountPaid)}
+                          </p>
+                        )}
                       </div>
                       <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-gray-400 hover:text-amber-600" onClick={() => openAmendmentDialog('EggSale', s.id, [
                         { key: 'crateCount', label: 'Crates', type: 'number' as const, value: s.crateCount },
@@ -368,7 +381,7 @@ export function SalesDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Payment</Label>
-                  <Select value={birdSalePayment} onValueChange={setBirdSalePayment}>
+                  <Select value={birdSalePayment} onValueChange={(v) => { setBirdSalePayment(v); if (v !== 'Partial') setBirdAmountPaid('') }}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Paid">Paid</SelectItem>
@@ -377,6 +390,12 @@ export function SalesDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
+                {birdSalePayment === 'Partial' && (
+                  <div>
+                    <Label className="text-xs">Amount Paid (GHS)</Label>
+                    <Input type="number" min="0" step="0.5" value={birdAmountPaid} onChange={e => setBirdAmountPaid(e.target.value)} placeholder="e.g. 500" className="h-9 text-sm" />
+                  </div>
+                )}
                 <div className="flex items-end col-span-2">
                   <Button type="submit" className="w-full md:w-auto h-9"><Plus className="h-3 w-3 mr-1" />Record Sale</Button>
                 </div>
@@ -403,6 +422,11 @@ export function SalesDashboard() {
                         <Badge variant={s.paymentStatus === 'Paid' ? 'default' : 'destructive'} className="text-[10px]">
                           {s.paymentStatus}
                         </Badge>
+                        {s.paymentStatus !== 'Paid' && s.totalAmount > 0 && (
+                          <p className="text-[10px] text-red-600 mt-0.5">
+                            Balance: {formatGHS(s.totalAmount - s.amountPaid)}
+                          </p>
+                        )}
                       </div>
                       <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-gray-400 hover:text-amber-600" onClick={() => openAmendmentDialog('BirdSale', s.id, [
                         { key: 'quantity', label: 'Quantity', type: 'number' as const, value: s.quantity },
