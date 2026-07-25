@@ -1,0 +1,552 @@
+     1→'use client'
+     2→
+     3→import { useEffect, useState, useCallback } from 'react'
+     4→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+     5→import { Badge } from '@/components/ui/badge'
+     6→import { Button } from '@/components/ui/button'
+     7→import { Input } from '@/components/ui/input'
+     8→import { Label } from '@/components/ui/label'
+     9→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    10→import { Textarea } from '@/components/ui/textarea'
+    11→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    12→import { ScrollArea } from '@/components/ui/scroll-area'
+    13→import { Skeleton } from '@/components/ui/skeleton'
+    14→import { useAppStore } from '@/store/app'
+    15→import { toast } from 'sonner'
+    16→import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, PieChart, Pie, Cell, Legend } from 'recharts'
+    17→import { LiveSyncIndicator } from '@/components/farm/LiveSyncIndicator'
+    18→import {
+    19→  Calculator, Plus, DollarSign, TrendingUp, TrendingDown, AlertCircle, FileText, CreditCard, Receipt, Pencil, Clock
+    20→} from 'lucide-react'
+    21→import { AmendmentRequestDialog } from '@/components/farm/AmendmentRequestDialog'
+    22→
+    23→const COLORS = ['#16a34a', '#ea580c', '#2563eb', '#9333ea', '#e11d48', '#ca8a04', '#06b6d4', '#84cc16']
+    24→
+    25→interface Farm { id: string; name: string }
+    26→interface Expense { id: string; date: string; category: string; description: string; amount: number; paymentStatus: string; dueDate: string | null; vendor: string; farm: { name: string } }
+    27→
+    28→function formatGHS(n: number) { return `GHS ${n.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }
+    29→
+    30→export function AccountantDashboard() {
+    31→  const { selectedFarmId, setFarm, currentUser } = useAppStore()
+    32→  const [farms, setFarms] = useState<Farm[]>([])
+    33→  const [expenses, setExpenses] = useState<Expense[]>([])
+    34→  const [eggSales, setEggSales] = useState<any[]>([])
+    35→  const [birdSales, setBirdSales] = useState<any[]>([])
+    36→  const [dashboard, setDashboard] = useState<any>(null)
+    37→  const [loading, setLoading] = useState(true)
+    38→  const [amendmentOpen, setAmendmentOpen] = useState(false)
+    39→  const [amendmentTarget, setAmendmentTarget] = useState<{ recordType: string; recordId: string; fields: any[] }>({ recordType: '', recordId: '', fields: [] })
+    40→
+    41→  // Form Select state (Radix Select doesn't use native form elements)
+    42→  const [expFarmId, setExpFarmId] = useState(selectedFarmId || '')
+    43→  const [expCategory, setExpCategory] = useState('')
+    44→  const [expPaymentStatus, setExpPaymentStatus] = useState('Paid')
+    45→
+    46→  useEffect(() => {
+    47→    if (selectedFarmId) setExpFarmId(selectedFarmId)
+    48→  }, [selectedFarmId])
+    49→
+    50→  const fetchData = useCallback(async () => {
+    51→    setLoading(true)
+    52→    try {
+    53→      const [farmsRes, expRes, eggsRes, birdsRes, dashRes] = await Promise.all([
+    54→        fetch('/api/farms'),
+    55→        fetch(`/api/expenses${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`),
+    56→        fetch(`/api/sales/eggs${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`),
+    57→        fetch(`/api/sales/birds${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`),
+    58→        fetch('/api/dashboard'),
+    59→      ])
+    60→      if (farmsRes.ok) setFarms(await farmsRes.json())
+    61→      if (expRes.ok) setExpenses(await expRes.json())
+    62→      if (eggsRes.ok) setEggSales(await eggsRes.json())
+    63→      if (birdsRes.ok) setBirdSales(await birdsRes.json())
+    64→      if (dashRes.ok) setDashboard(await dashRes.json())
+    65→    } catch (e) { console.error(e) }
+    66→    finally { setLoading(false) }
+    67→  }, [selectedFarmId])
+    68→
+    69→  useEffect(() => { fetchData() }, [fetchData])
+    70→
+    71→  // Auto-refresh: Accountant sees sales data from sales team in real-time
+    72→  const handleAutoData = useCallback((results: any[]) => {
+    73→    if (results && results.length >= 5) {
+    74→      setFarms(results[0] || [])
+    75→      setExpenses(results[1] || [])
+    76→      setEggSales(results[2] || [])
+    77→      setBirdSales(results[3] || [])
+    78→      setDashboard(results[4] || null)
+    79→    }
+    80→  }, [])
+    81→
+    82→  const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
+    83→  const filteredExpenses = expenses.filter(e => new Date(e.date).toISOString().split('T')[0] >= monthAgo)
+    84→  const filteredEggSales = eggSales.filter(e => new Date(e.date).toISOString().split('T')[0] >= monthAgo)
+    85→  const filteredBirdSales = birdSales.filter(e => new Date(e.date).toISOString().split('T')[0] >= monthAgo)
+    86→
+    87→  const totalExpenses = filteredExpenses.reduce((s, e) => s + e.amount, 0)
+    88→  const totalEggRev = filteredEggSales.reduce((s, e) => s + e.totalAmount, 0)
+    89→  const totalBirdRev = filteredBirdSales.reduce((s, e) => s + e.totalAmount, 0)
+    90→  const totalRevenue = totalEggRev + totalBirdRev
+    91→  const totalProfit = totalRevenue - totalExpenses
+    92→
+    93→  const unpaidExpenses = filteredExpenses.filter(e => e.paymentStatus !== 'Paid')
+    94→  const unpaidExpTotal = unpaidExpenses.reduce((s, e) => s + e.amount, 0)
+    95→  const unpaidReceivable = filteredEggSales.filter(e => e.paymentStatus !== 'Paid').reduce((s, e) => s + (e.totalAmount - e.amountPaid), 0)
+    96→    + filteredBirdSales.filter(e => e.paymentStatus !== 'Paid').reduce((s, e) => s + (e.totalAmount - e.amountPaid), 0)
+    97→
+    98→  const expByCategory = dashboard?.thisMonth?.expenseByCategory || {}
+    99→  const expPieData = Object.entries(expByCategory).map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }))
+   100→
+   101→  const today = new Date().toISOString().split('T')[0]
+   102→
+   103→  // 6-week payment alerts
+   104→  const sixWeeksMs = 42 * 24 * 86400000
+   105→  const now = Date.now()
+   106→  const upcomingExpenses = expenses.filter(e => {
+   107→    if (!e.dueDate || e.paymentStatus === 'Paid') return false
+   108→    const dueDate = new Date(e.dueDate).getTime()
+   109→    const daysUntilDue = (dueDate - now) / 86400000
+   110→    return daysUntilDue <= 42
+   111→  }).sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
+   112→
+   113→  const agingReceivables = [
+   114→    ...eggSales.filter(s => s.paymentStatus !== 'Paid').map(s => ({ ...s, _type: 'EggSale' })),
+   115→    ...birdSales.filter(s => s.paymentStatus !== 'Paid').map(s => ({ ...s, _type: 'BirdSale' })),
+   116→  ].filter(s => (now - new Date(s.date).getTime()) / 86400000 >= 42)
+   117→    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+   118→
+   119→  const getDueDateUrgency = (dueDate: string) => {
+   120→    const days = (new Date(dueDate).getTime() - now) / 86400000
+   121→    if (days <= 0) return 'overdue'
+   122→    if (days <= 7) return 'urgent'
+   123→    if (days <= 28) return 'warning'
+   124→    return 'normal'
+   125→  }
+   126→
+   127→  const openAmendmentDialog = (recordType: string, recordId: string, fields: any[]) => {
+   128→    setAmendmentTarget({ recordType, recordId, fields })
+   129→    setAmendmentOpen(true)
+   130→  }
+   131→
+   132→  const submitExpense = async (e: React.FormEvent<HTMLFormElement>) => {
+   133→    e.preventDefault()
+   134→    const f = e.currentTarget
+   135→    try {
+   136→      const data = {
+   137→        farmId: expFarmId,
+   138→        date: (f.elements.namedItem('date') as HTMLInputElement).value || today,
+   139→        category: expCategory,
+   140→        description: (f.elements.namedItem('description') as HTMLInputElement).value,
+   141→        amount: parseFloat((f.elements.namedItem('amount') as HTMLInputElement).value) || 0,
+   142→        paymentStatus: expPaymentStatus,
+   143→        dueDate: (f.elements.namedItem('dueDate') as HTMLInputElement).value || null,
+   144→        vendor: (f.elements.namedItem('vendor') as HTMLInputElement).value || null,
+   145→        receiptNo: (f.elements.namedItem('receiptNo') as HTMLInputElement).value || null,
+   146→        recordedBy: 'Accountant',
+   147→      }
+   148→      if (!data.farmId || !data.category) { toast.error('Please select farm and category'); return }
+   149→      const res = await fetch('/api/expenses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+   150→      if (res.ok) { toast.success('Expense recorded!'); f.reset(); fetchData() }
+   151→      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to record expense') }
+   152→    } catch (err) { console.error(err); toast.error('Failed to record expense') }
+   153→  }
+   154→
+   155→  if (loading && !dashboard) return <div className="grid grid-cols-2 gap-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
+   156→
+   157→  return (
+   158→    <div className="space-y-4 md:space-y-6">
+   159→      {/* 6-Week Payment Alerts */}
+   160→      {(upcomingExpenses.length > 0 || agingReceivables.length > 0) && (
+   161→        <div className="space-y-2">
+   162→          <h3 className="text-sm font-semibold flex items-center gap-2">
+   163→            <Clock className="h-4 w-4 text-amber-600" />
+   164→            6-Week Payment Outlook
+   165→          </h3>
+   166→          {upcomingExpenses.length > 0 && (
+   167→            <Card className="border-orange-200 bg-orange-50">
+   168→              <CardContent className="p-3">
+   169→                <p className="text-xs font-medium text-orange-800 mb-2">Upcoming Expense Due Dates ({upcomingExpenses.length})</p>
+   170→                <ScrollArea className="max-h-48">
+   171→                  <div className="space-y-1">
+   172→                    {upcomingExpenses.slice(0, 10).map(e => {
+   173→                      const urgency = getDueDateUrgency(e.dueDate!)
+   174→                      const daysUntil = Math.ceil((new Date(e.dueDate!).getTime() - now) / 86400000)
+   175→                      return (
+   176→                        <div key={e.id} className={`flex items-center gap-2 p-2 rounded-lg text-xs ${
+   177→                          urgency === 'overdue' ? 'bg-red-100 border border-red-200' :
+   178→                          urgency === 'urgent' ? 'bg-red-50 border border-red-100' :
+   179→                          urgency === 'warning' ? 'bg-orange-50 border border-orange-100' :
+   180→                          'bg-amber-50 border border-amber-100'
+   181→                        }`}>
+   182→                          <Receipt className={`h-3 w-3 shrink-0 ${
+   183→                            urgency === 'overdue' ? 'text-red-600' :
+   184→                            urgency === 'urgent' ? 'text-red-500' :
+   185→                            'text-orange-500'
+   186→                          }`} />
+   187→                          <div className="flex-1 min-w-0">
+   188→                            <p className="font-medium truncate">{e.description}</p>
+   189→                            <p className="text-[10px] text-gray-500">{e.farm?.name} · {e.vendor || 'No vendor'}</p>
+   190→                          </div>
+   191→                          <div className="text-right shrink-0">
+   192→                            <p className="font-medium">{formatGHS(e.amount)}</p>
+   193→                            <Badge variant={
+   194→                              urgency === 'overdue' ? 'destructive' :
+   195→                              urgency === 'urgent' ? 'destructive' : 'secondary'
+   196→                            } className="text-[9px]">
+   197→                              {urgency === 'overdue' ? 'OVERDUE' : `${Math.abs(daysUntil)}d ${daysUntil > 0 ? 'left' : 'ago'}`}
+   198→                            </Badge>
+   199→                          </div>
+   200→                        </div>
+   201→                      )
+   202→                    })}
+   203→                  </div>
+   204→                </ScrollArea>
+   205→              </CardContent>
+   206→            </Card>
+   207→          )}
+   208→          {agingReceivables.length > 0 && (
+   209→            <Card className="border-red-200 bg-red-50">
+   210→              <CardContent className="p-3">
+   211→                <p className="text-xs font-medium text-red-800 mb-2">Aging Receivables (6+ weeks) ({agingReceivables.length})</p>
+   212→                <ScrollArea className="max-h-32">
+   213→                  <div className="space-y-1">
+   214→                    {agingReceivables.slice(0, 5).map(s => (
+   215→                      <div key={s.id} className="flex items-center gap-2 p-2 bg-red-100 rounded-lg text-xs">
+   216→                        <CreditCard className="h-3 w-3 text-red-600 shrink-0" />
+   217→                        <div className="flex-1">
+   218→                          <p className="font-medium">{s.customer?.name || 'Walk-in'} ({s._type})</p>
+   219→                          <p className="text-[10px] text-gray-500">{new Date(s.date).toLocaleDateString('en-GB')}</p>
+   220→                        </div>
+   221→                        <p className="font-medium text-red-600">{formatGHS(s.totalAmount - s.amountPaid)} due</p>
+   222→                      </div>
+   223→                    ))}
+   224→                  </div>
+   225→                </ScrollArea>
+   226→              </CardContent>
+   227→            </Card>
+   228→          )}
+   229→        </div>
+   230→      )}
+   231→
+   232→      {/* Existing Payment Alerts */}
+   233→      {(unpaidExpTotal > 0 || unpaidReceivable > 0) && (
+   234→        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+   235→          {unpaidExpTotal > 0 && (
+   236→            <Card className="border-red-200 bg-red-50">
+   237→              <CardContent className="p-3 flex items-center gap-3">
+   238→                <Receipt className="h-5 w-5 text-red-600 shrink-0" />
+   239→                <div className="flex-1">
+   240→                  <p className="text-sm font-medium text-red-800">Payments Due: {formatGHS(unpaidExpTotal)}</p>
+   241→                  <p className="text-xs text-red-600">{unpaidExpenses.length} unpaid expense record{unpaidExpenses.length > 1 ? 's' : ''}</p>
+   242→                </div>
+   243→                <Badge variant="destructive">Action Needed</Badge>
+   244→              </CardContent>
+   245→            </Card>
+   246→          )}
+   247→          {unpaidReceivable > 0 && (
+   248→            <Card className="border-amber-200 bg-amber-50">
+   249→              <CardContent className="p-3 flex items-center gap-3">
+   250→                <CreditCard className="h-5 w-5 text-amber-600 shrink-0" />
+   251→                <div className="flex-1">
+   252→                  <p className="text-sm font-medium text-amber-800">Receivables Outstanding: {formatGHS(unpaidReceivable)}</p>
+   253→                  <p className="text-xs text-amber-600">Money owed from customers</p>
+   254→                </div>
+   255→                <Badge variant="secondary">Follow Up</Badge>
+   256→              </CardContent>
+   257→            </Card>
+   258→          )}
+   259→        </div>
+   260→      )}
+   261→
+   262→      {/* KPI Cards */}
+   263→      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+   264→        <Card>
+   265→          <CardContent className="p-4">
+   266→            <div className="flex items-center gap-2 mb-1">
+   267→              <TrendingUp className="h-4 w-4 text-green-600" />
+   268→              <span className="text-xs text-gray-500">Total Revenue</span>
+   269→            </div>
+   270→            <p className="text-xl font-bold text-green-700">{formatGHS(totalRevenue)}</p>
+   271→            <p className="text-xs text-gray-500">Eggs: {formatGHS(totalEggRev)} · Birds: {formatGHS(totalBirdRev)}</p>
+   272→          </CardContent>
+   273→        </Card>
+   274→        <Card>
+   275→          <CardContent className="p-4">
+   276→            <div className="flex items-center gap-2 mb-1">
+   277→              <TrendingDown className="h-4 w-4 text-red-600" />
+   278→              <span className="text-xs text-gray-500">Total Expenses</span>
+   279→            </div>
+   280→            <p className="text-xl font-bold text-red-600">{formatGHS(totalExpenses)}</p>
+   281→            <p className="text-xs text-gray-500">{filteredExpenses.length} expense records</p>
+   282→          </CardContent>
+   283→        </Card>
+   284→        <Card>
+   285→          <CardContent className="p-4">
+   286→            <div className="flex items-center gap-2 mb-1">
+   287→              <DollarSign className="h-4 w-4 text-emerald-600" />
+   288→              <span className="text-xs text-gray-500">Net Profit</span>
+   289→            </div>
+   290→            <p className={`text-xl font-bold ${totalProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatGHS(totalProfit)}</p>
+   291→          </CardContent>
+   292→        </Card>
+   293→        <Card>
+   294→          <CardContent className="p-4">
+   295→            <div className="flex items-center gap-2 mb-1">
+   296→              <AlertCircle className="h-4 w-4 text-amber-600" />
+   297→              <span className="text-xs text-gray-500">Payments Due</span>
+   298→            </div>
+   299→            <p className="text-xl font-bold text-amber-600">{formatGHS(unpaidExpTotal)}</p>
+   300→            <p className="text-xs text-gray-500">Receivable: {formatGHS(unpaidReceivable)}</p>
+   301→          </CardContent>
+   302→        </Card>
+   303→      </div>
+   304→
+   305→      {/* Farm Filter */}
+   306→      <div className="flex items-center gap-2">
+   307→        <Label className="text-xs text-gray-500">Farm:</Label>
+   308→        <Select value={selectedFarmId || 'all'} onValueChange={(v) => setFarm(v === 'all' ? null : v)}>
+   309→          <SelectTrigger className="w-48 h-8 text-xs"><SelectValue placeholder="All Farms" /></SelectTrigger>
+   310→          <SelectContent>
+   311→            <SelectItem value="all">All Farms</SelectItem>
+   312→            {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+   313→          </SelectContent>
+   314→        </Select>
+   315→      </div>
+   316→
+   317→      <LiveSyncIndicator
+   318→        endpoints={['/api/farms', `/api/expenses${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/sales/eggs${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/sales/birds${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, '/api/dashboard']}
+   319→        interval={15000}
+   320→        onData={handleAutoData}
+   321→        compact
+   322→      />
+   323→
+   324→      <Tabs defaultValue="record" className="w-full">
+   325→        <TabsList className="grid grid-cols-4 w-full">
+   326→          <TabsTrigger value="record"><Plus className="h-3 w-3 mr-1" />Record</TabsTrigger>
+   327→          <TabsTrigger value="expenses"><FileText className="h-3 w-3 mr-1" />Expenses</TabsTrigger>
+   328→          <TabsTrigger value="revenue"><TrendingUp className="h-3 w-3 mr-1" />Revenue</TabsTrigger>
+   329→          <TabsTrigger value="analysis"><Calculator className="h-3 w-3 mr-1" />Analysis</TabsTrigger>
+   330→        </TabsList>
+   331→
+   332→        <TabsContent value="record">
+   333→          <Card>
+   334→            <CardHeader className="pb-2">
+   335→              <CardTitle className="text-base">Record Expense</CardTitle>
+   336→            </CardHeader>
+   337→            <CardContent>
+   338→              <form onSubmit={submitExpense} className="grid grid-cols-2 md:grid-cols-3 gap-3">
+   339→                <div>
+   340→                  <Label className="text-xs">Farm *</Label>
+   341→                  <Select value={expFarmId} onValueChange={setExpFarmId}>
+   342→                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select farm" /></SelectTrigger>
+   343→                    <SelectContent>
+   344→                      {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+   345→                    </SelectContent>
+   346→                  </Select>
+   347→                </div>
+   348→                <div>
+   349→                  <Label className="text-xs">Category *</Label>
+   350→                  <Select value={expCategory} onValueChange={setExpCategory}>
+   351→                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
+   352→                    <SelectContent>
+   353→                      {['Feed', 'Medication', 'Utilities', 'Labour', 'Transport', 'Equipment', 'Maintenance', 'Other'].map(c => (
+   354→                        <SelectItem key={c} value={c}>{c}</SelectItem>
+   355→                      ))}
+   356→                    </SelectContent>
+   357→                  </Select>
+   358→                </div>
+   359→                <div>
+   360→                  <Label className="text-xs">Amount (GHS) *</Label>
+   361→                  <Input name="amount" type="number" min="0" step="0.01" required placeholder="e.g. 500" className="h-9 text-sm" />
+   362→                </div>
+   363→                <div>
+   364→                  <Label className="text-xs">Date</Label>
+   365→                  <Input name="date" type="date" defaultValue={today} className="h-9 text-sm" />
+   366→                </div>
+   367→                <div>
+   368→                  <Label className="text-xs">Payment Status</Label>
+   369→                  <Select value={expPaymentStatus} onValueChange={setExpPaymentStatus}>
+   370→                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+   371→                    <SelectContent>
+   372→                      <SelectItem value="Paid">Paid</SelectItem>
+   373→                      <SelectItem value="Unpaid">Unpaid</SelectItem>
+   374→                      <SelectItem value="Partial">Partial</SelectItem>
+   375→                    </SelectContent>
+   376→                  </Select>
+   377→                </div>
+   378→                <div>
+   379→                  <Label className="text-xs">Due Date</Label>
+   380→                  <Input name="dueDate" type="date" className="h-9 text-sm" />
+   381→                </div>
+   382→                <div>
+   383→                  <Label className="text-xs">Vendor</Label>
+   384→                  <Input name="vendor" placeholder="Supplier name" className="h-9 text-sm" />
+   385→                </div>
+   386→                <div>
+   387→                  <Label className="text-xs">Receipt No.</Label>
+   388→                  <Input name="receiptNo" placeholder="RCP-001" className="h-9 text-sm" />
+   389→                </div>
+   390→                <div>
+   391→                  <Label className="text-xs">Description *</Label>
+   392→                  <Input name="description" required placeholder="Brief description" className="h-9 text-sm" />
+   393→                </div>
+   394→                <div className="flex items-end col-span-2 md:col-span-3">
+   395→                  <Button type="submit" className="w-full md:w-auto h-9"><Plus className="h-3 w-3 mr-1" />Record Expense</Button>
+   396→                </div>
+   397→              </form>
+   398→            </CardContent>
+   399→          </Card>
+   400→        </TabsContent>
+   401→
+   402→        <TabsContent value="expenses">
+   403→          <Card>
+   404→            <CardHeader className="pb-2">
+   405→              <CardTitle className="text-base">Expense Records</CardTitle>
+   406→            </CardHeader>
+   407→            <CardContent>
+   408→              <ScrollArea className="max-h-96">
+   409→                <div className="space-y-2">
+   410→                  {expenses.slice(0, 30).map(e => (
+   411→                    <div key={e.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg text-sm">
+   412→                      <div className={`w-2 h-2 rounded-full shrink-0 ${e.paymentStatus === 'Paid' ? 'bg-green-500' : 'bg-red-500'}`} />
+   413→                      <div className="flex-1 min-w-0">
+   414→                        <p className="font-medium truncate">{e.description}</p>
+   415→                        <p className="text-xs text-gray-500">
+   416→                          {new Date(e.date).toLocaleDateString('en-GB')} · {e.farm?.name} · {e.vendor || 'No vendor'}
+   417→                        </p>
+   418→                      </div>
+   419→                      <Badge variant="secondary" className="text-[10px] shrink-0">{e.category}</Badge>
+   420→                      <div className="text-right shrink-0">
+   421→                        <p className="font-medium">{formatGHS(e.amount)}</p>
+   422→                        <Badge variant={e.paymentStatus === 'Paid' ? 'default' : 'destructive'} className="text-[10px]">
+   423→                          {e.paymentStatus}
+   424→                        </Badge>
+   425→                      </div>
+   426→                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-gray-400 hover:text-amber-600" onClick={() => openAmendmentDialog('Expense', e.id, [
+   427→                        { key: 'amount', label: 'Amount', type: 'number' as const, value: e.amount },
+   428→                        { key: 'paymentStatus', label: 'Payment Status', type: 'text' as const, value: e.paymentStatus },
+   429→                        { key: 'description', label: 'Description', type: 'text' as const, value: e.description },
+   430→                        { key: 'category', label: 'Category', type: 'text' as const, value: e.category },
+   431→                      ])}>
+   432→                        <Pencil className="h-3 w-3" />
+   433→                      </Button>
+   434→                    </div>
+   435→                  ))}
+   436→                  {expenses.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">No expense records</p>}
+   437→                </div>
+   438→              </ScrollArea>
+   439→            </CardContent>
+   440→          </Card>
+   441→        </TabsContent>
+   442→
+   443→        <TabsContent value="revenue">
+   444→          <div className="space-y-4">
+   445→            <Card>
+   446→              <CardHeader className="pb-2">
+   447→                <CardTitle className="text-base">Egg Sales Revenue</CardTitle>
+   448→              </CardHeader>
+   449→              <CardContent>
+   450→                <ScrollArea className="max-h-64">
+   451→                  <div className="space-y-2">
+   452→                    {eggSales.slice(0, 20).map(s => (
+   453→                      <div key={s.id} className="flex items-center gap-3 p-2 bg-green-50 rounded-lg text-sm">
+   454→                        <div className={`w-2 h-2 rounded-full shrink-0 ${s.paymentStatus === 'Paid' ? 'bg-green-500' : 'bg-amber-500'}`} />
+   455→                        <div className="flex-1">
+   456→                          <p className="font-medium">{s.customer?.name || 'Walk-in'}</p>
+   457→                          <p className="text-xs text-gray-500">{new Date(s.date).toLocaleDateString('en-GB')} · {s.crateCount} crates</p>
+   458→                        </div>
+   459→                        <p className="font-medium text-green-700">{formatGHS(s.totalAmount)}</p>
+   460→                      </div>
+   461→                    ))}
+   462→                  </div>
+   463→                </ScrollArea>
+   464→              </CardContent>
+   465→            </Card>
+   466→            <Card>
+   467→              <CardHeader className="pb-2">
+   468→                <CardTitle className="text-base">Bird Sales Revenue</CardTitle>
+   469→              </CardHeader>
+   470→              <CardContent>
+   471→                <ScrollArea className="max-h-64">
+   472→                  <div className="space-y-2">
+   473→                    {birdSales.slice(0, 20).map(s => (
+   474→                      <div key={s.id} className="flex items-center gap-3 p-2 bg-blue-50 rounded-lg text-sm">
+   475→                        <div className={`w-2 h-2 rounded-full shrink-0 ${s.paymentStatus === 'Paid' ? 'bg-green-500' : 'bg-amber-500'}`} />
+   476→                        <div className="flex-1">
+   477→                          <p className="font-medium">{s.customer?.name || 'Walk-in'}</p>
+   478→                          <p className="text-xs text-gray-500">{new Date(s.date).toLocaleDateString('en-GB')} · {s.quantity} birds</p>
+   479→                        </div>
+   480→                        <p className="font-medium text-blue-700">{formatGHS(s.totalAmount)}</p>
+   481→                      </div>
+   482→                    ))}
+   483→                  </div>
+   484→                </ScrollArea>
+   485→              </CardContent>
+   486→            </Card>
+   487→          </div>
+   488→        </TabsContent>
+   489→
+   490→        <TabsContent value="analysis">
+   491→          <div className="space-y-4">
+   492→            {expPieData.length > 0 && (
+   493→              <Card>
+   494→                <CardHeader className="pb-2">
+   495→                  <CardTitle className="text-base">Expense Breakdown by Category</CardTitle>
+   496→                </CardHeader>
+   497→                <CardContent>
+   498→                  <div className="h-64">
+   499→                    <ResponsiveContainer width="100%" height="100%">
+   500→                      <PieChart>
+   501→                        <Pie data={expPieData} cx="50%" cy="50%" outerRadius={80} innerRadius={40} paddingAngle={3} dataKey="value"
+   502→                          label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}>
+   503→                          {expPieData.map((_, idx) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
+   504→                        </Pie>
+   505→                        <Tooltip formatter={(value: number) => formatGHS(value)} />
+   506→                      </PieChart>
+   507→                    </ResponsiveContainer>
+   508→                  </div>
+   509→                </CardContent>
+   510→              </Card>
+   511→            )}
+   512→
+   513→            <Card>
+   514→              <CardHeader className="pb-2">
+   515→                <CardTitle className="text-base">Monthly Summary</CardTitle>
+   516→              </CardHeader>
+   517→              <CardContent>
+   518→                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+   519→                  <div className="p-3 bg-green-50 rounded-lg">
+   520→                    <p className="text-xs text-gray-500">Egg Revenue</p>
+   521→                    <p className="text-lg font-bold text-green-700">{formatGHS(totalEggRev)}</p>
+   522→                  </div>
+   523→                  <div className="p-3 bg-blue-50 rounded-lg">
+   524→                    <p className="text-xs text-gray-500">Bird Revenue</p>
+   525→                    <p className="text-lg font-bold text-blue-700">{formatGHS(totalBirdRev)}</p>
+   526→                  </div>
+   527→                  <div className="p-3 bg-red-50 rounded-lg">
+   528→                    <p className="text-xs text-gray-500">Expenses</p>
+   529→                    <p className="text-lg font-bold text-red-600">{formatGHS(totalExpenses)}</p>
+   530→                  </div>
+   531→                  <div className={`p-3 rounded-lg ${totalProfit >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+   532→                    <p className="text-xs text-gray-500">Net Profit</p>
+   533→                    <p className={`text-lg font-bold ${totalProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatGHS(totalProfit)}</p>
+   534→                  </div>
+   535→                </div>
+   536→              </CardContent>
+   537→            </Card>
+   538→          </div>
+   539→        </TabsContent>
+   540→      </Tabs>
+   541→      {/* Amendment Dialog */}
+   542→      <AmendmentRequestDialog
+   543→        open={amendmentOpen}
+   544→        onOpenChange={setAmendmentOpen}
+   545→        recordType={amendmentTarget.recordType}
+   546→        recordId={amendmentTarget.recordId}
+   547→        fields={amendmentTarget.fields}
+   548→      />
+   549→    </div>
+   550→  )
+   551→}
+   552→

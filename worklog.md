@@ -102,3 +102,35 @@
 | `src/components/farm/LiveSyncIndicator.tsx` | Lint fix |
 | `src/hooks/useAutoRefresh.ts` | Lint fix + removed initial refresh |
 | `src/lib/db.ts` | Updated documentation |
+
+---
+
+## Date: 2026-07-25 — Bug Fix Session
+
+### CRITICAL: Root Cause of Save Bug Found and Fixed
+- **Root cause**: `PasswordResetPanel.tsx` used variable `newPass` that was never declared with `useState`. This caused a ReferenceError crash that broke the entire React component tree, preventing ALL dashboards from rendering/saving (not just FarmHand).
+- **Fix**: Added `const [newPass, setNewPass] = useState('')` to PasswordResetPanel.tsx
+- This was NOT an auto-refresh/polling issue — it was a simple missing state declaration that crashed the whole app
+
+### CEODashboard Duplicate Function Fix
+- Removed duplicate `handleDataReset` function (was defined twice)
+- Fixed function ordering: `fetchDashboard` now defined BEFORE `handleDataReset` (which calls it)
+- Fixed variable shadowing: renamed `handleAutoData`'s parameter from `data` to `dashboardData`
+
+### Amendment API Numeric Type Fix
+- `applyAmendment` in `/api/amendments/route.ts` was passing string values directly to numeric Prisma fields (e.g., `crateCount: "20"` instead of `crateCount: 20`)
+- Fixed: Added auto-parsing logic — if `newValue` is a valid number, parse it as `Number()` before applying
+
+### Expanded CEO Data Reset Coverage
+- Added Vaccination, Treatment, HealthCheck to supported reset types
+- Reset now covers all 9 record types
+- Updated CEODashboard UI to show all 9 reset buttons
+
+### All Tests Passed
+- POST /api/eggs: ✅ Creates egg collection records
+- POST /api/auth: ✅ Login works for all roles
+- POST /api/amendments: ✅ Creates pending amendments
+- PUT /api/amendments: ✅ Approves amendments and applies changes correctly
+- DELETE /api/staff: ✅ Soft-deletes staff (isActive=false), login blocked
+- PUT /api/staff: ✅ Can reactivate staff
+- POST /api/reset: ✅ CEO can reset all record types

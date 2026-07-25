@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
-const SUPPORTED_TYPES = ['DailyEggCollection', 'BirdMortality', 'FeedRecord', 'EggSale', 'BirdSale', 'Expense']
+const SUPPORTED_TYPES = ['DailyEggCollection', 'BirdMortality', 'FeedRecord', 'EggSale', 'BirdSale', 'Expense', 'Vaccination', 'Treatment', 'HealthCheck']
 
-// Reset numeric fields to 0 and clear string fields for a record type
+// Reset numeric fields to 0/null and clear string fields for a record type
 async function resetRecords(recordType: string, farmId?: string) {
   const where: any = {}
   if (farmId) where.farmId = farmId
@@ -21,7 +21,7 @@ async function resetRecords(recordType: string, farmId?: string) {
     case 'BirdMortality':
       count = await db.birdMortality.updateMany({
         where,
-        data: { count: 0 },
+        data: { count: 0, cause: null },
       })
       break
 
@@ -50,6 +50,27 @@ async function resetRecords(recordType: string, farmId?: string) {
       count = await db.expense.updateMany({
         where,
         data: { amount: 0, paymentStatus: 'Paid', receiptNo: '' },
+      })
+      break
+
+    case 'Vaccination':
+      count = await db.vaccination.updateMany({
+        where,
+        data: { cost: 0, batchNo: '', method: null, dosage: null },
+      })
+      break
+
+    case 'Treatment':
+      count = await db.treatment.updateMany({
+        where,
+        data: { cost: 0, dosage: null, duration: null },
+      })
+      break
+
+    case 'HealthCheck':
+      count = await db.healthCheck.updateMany({
+        where,
+        data: { temperature: null, mortalityCount: 0, waterIntakeL: null, feedIntakeKg: null },
       })
       break
 

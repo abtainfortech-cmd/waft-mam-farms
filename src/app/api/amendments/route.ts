@@ -3,7 +3,11 @@ import { db } from '@/lib/db'
 
 // Helper: apply amendment to the actual record
 async function applyAmendment(recordType: string, recordId: string, field: string, newValue: string) {
-  const parsedValue: any = newValue
+  // Try to parse as number, fall back to string for text fields
+  let parsedValue: any = newValue
+  if (newValue !== '' && !isNaN(Number(newValue))) {
+    parsedValue = Number(newValue)
+  }
   const data: any = { [field]: parsedValue }
 
   switch (recordType) {

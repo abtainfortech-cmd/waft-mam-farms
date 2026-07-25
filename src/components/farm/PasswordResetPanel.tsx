@@ -41,6 +41,7 @@ export function PasswordResetPanel() {
   const [newName, setNewName] = useState('')
   const [newRole, setNewRole] = useState('')
   const [newUsername, setNewUsername] = useState('')
+  const [newPass, setNewPass] = useState('')
   const [confirmDeactivate, setConfirmDeactivate] = useState<{ id: string; name: string } | null>(null)
 
   const fetchStaff = useCallback(async () => {

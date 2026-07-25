@@ -49,33 +49,6 @@ export function CEODashboard() {
   const [loading, setLoading] = useState(true)
   const [resetLoading, setResetLoading] = useState<string | null>(null)
 
-  // Data Reset for CEO
-  const handleDataReset = async (recordType: string) => {
-    if (!confirm(`Are you sure you want to reset all ${recordType} records? This will set numeric fields to 0 and clear string fields. This action cannot be undone.`)) {
-      return
-    }
-    setResetLoading(recordType)
-    try {
-      const res = await fetch('/api/reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recordType, farmId: selectedFarmId || undefined, role: currentUser?.role || 'CEO' }),
-      })
-      if (res.ok) {
-        const result = await res.json()
-        toast.success(`Reset ${result.count} ${recordType} records (${result.farmId})`)
-        fetchDashboard()
-      } else {
-        const err = await res.json().catch(() => ({}))
-        toast.error(err.error || 'Failed to reset data')
-      }
-    } catch {
-      toast.error('Network error')
-    } finally {
-      setResetLoading(null)
-    }
-  }
-
   const fetchDashboard = useCallback(async () => {
     setLoading(true)
     try {
@@ -120,8 +93,8 @@ export function CEODashboard() {
   }
 
   // Auto-refresh: CEO dashboard polls every 10s for freshest overview
-  const handleAutoData = useCallback((data: any) => {
-    if (data) setData(data)
+  const handleAutoData = useCallback((dashboardData: any) => {
+    if (dashboardData) setData(dashboardData)
   }, [])
 
   if (loading || !data) {
@@ -464,7 +437,7 @@ export function CEODashboard() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            {['DailyEggCollection', 'BirdMortality', 'FeedRecord', 'EggSale', 'BirdSale', 'Expense'].map(type => {
+            {['DailyEggCollection', 'BirdMortality', 'FeedRecord', 'EggSale', 'BirdSale', 'Expense', 'Vaccination', 'Treatment', 'HealthCheck'].map(type => {
               const labels: Record<string, string> = {
                 DailyEggCollection: 'Egg Collections',
                 BirdMortality: 'Mortality Records',
@@ -472,6 +445,9 @@ export function CEODashboard() {
                 EggSale: 'Egg Sales',
                 BirdSale: 'Bird Sales',
                 Expense: 'Expenses',
+                Vaccination: 'Vaccinations',
+                Treatment: 'Treatments',
+                HealthCheck: 'Health Checks',
               }
               return (
                 <Button
