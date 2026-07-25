@@ -2,12 +2,10 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAppStore } from '@/store/app'
 import { toast } from 'sonner'
 import {
@@ -37,14 +35,18 @@ function FarmNameEditor() {
 
   const fetchSettings = useCallback(async () => {
     try {
-      const res = await fetch('/api/farm-settings')
+      const res = await fetch('/api/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'getFarmName', role: currentUser?.role }),
+      })
       if (res.ok) {
         const data = await res.json()
         setFarmName(data.farmName)
         setSavedName(data.farmName)
       }
     } catch {}
-  }, [])
+  }, [currentUser?.role])
 
   useEffect(() => { fetchSettings() }, [fetchSettings])
 
@@ -55,10 +57,10 @@ function FarmNameEditor() {
     }
     setSaving(true)
     try {
-      const res = await fetch('/api/farm-settings', {
-        method: 'PUT',
+      const res = await fetch('/api/reset', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ farmName: farmName.trim(), role: currentUser?.role }),
+        body: JSON.stringify({ action: 'updateFarmName', farmName: farmName.trim(), role: currentUser?.role }),
       })
       if (res.ok) {
         toast.success('Farm name updated successfully')
@@ -73,11 +75,6 @@ function FarmNameEditor() {
     } finally {
       setSaving(false)
     }
-  }
-
-  const handleCancel = () => {
-    setFarmName(savedName)
-    setEditing(false)
   }
 
   return (
@@ -109,7 +106,7 @@ function FarmNameEditor() {
                 {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
                 Save
               </Button>
-              <Button size="sm" variant="outline" onClick={handleCancel} className="h-8 text-xs">
+              <Button size="sm" variant="outline" onClick={() => { setFarmName(savedName); setEditing(false) }} className="h-8 text-xs">
                 <X className="h-3 w-3 mr-1" /> Cancel
               </Button>
             </div>
@@ -140,7 +137,6 @@ function FarmLocationsManager() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  // Add farm form
   const [newName, setNewName] = useState('')
   const [newLocation, setNewLocation] = useState('')
   const [newAddress, setNewAddress] = useState('')
@@ -191,17 +187,17 @@ function FarmLocationsManager() {
     }
   }
 
-  const handleRenameFarm = async (farm: FarmInfo, newName: string) => {
-    if (!newName.trim() || newName.trim().length < 2) {
+  const handleRenameFarm = async (farm: FarmInfo, newNameVal: string) => {
+    if (!newNameVal.trim() || newNameVal.trim().length < 2) {
       toast.error('Farm name must be at least 2 characters')
       return
     }
     setSaving(true)
     try {
-      const res = await fetch(`/api/farms/${farm.id}`, {
-        method: 'PATCH',
+      const res = await fetch('/api/farms', {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName.trim(), role: currentUser?.role }),
+        body: JSON.stringify({ id: farm.id, name: newNameVal.trim() }),
       })
       if (res.ok) {
         toast.success('Farm renamed successfully')
@@ -221,10 +217,10 @@ function FarmLocationsManager() {
   const handleDeleteFarm = async (farmId: string) => {
     setSaving(true)
     try {
-      const res = await fetch(`/api/farms/${farmId}`, {
-        method: 'DELETE',
+      const res = await fetch('/api/farms', {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: currentUser?.role }),
+        body: JSON.stringify({ id: farmId, action: 'delete' }),
       })
       if (res.ok) {
         toast.success('Farm removed. All existing records for this farm are preserved.')
@@ -301,75 +297,71 @@ function FarmLocationsManager() {
             Add more sites as your operation grows.
           </p>
         </div>
-        <ScrollArea className="max-h-80">
-          <div className="space-y-2">
-            {loading && !farms.length ? (
-              <p className="text-sm text-gray-400 text-center py-4">Loading farms...</p>
-            ) : farms.filter(f => f.isActive).length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-4">No active farms. Add one above.</p>
-            ) : (
-              farms.filter(f => f.isActive).map(farm => (
-                <div key={farm.id} className="border rounded-lg p-3">
-                  {editFarm?.id === farm.id ? (
-                    <div className="space-y-2">
-                      <Input
-                        value={editFarm.name}
-                        onChange={e => setEditFarm({ ...editFarm, name: e.target.value })}
-                        className="h-8 text-sm"
-                        autoFocus
-                      />
-                      <div className="flex gap-1">
-                        <Button size="sm" onClick={() => handleRenameFarm(farm, editFarm.name)}
-                          disabled={saving || !editFarm.name.trim()} className="h-7 text-[10px] gap-1">
-                          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                          Save
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setEditFarm(null)} className="h-7 text-[10px]">
-                          Cancel
-                        </Button>
-                      </div>
+        <div className="space-y-2">
+          {loading && !farms.length ? (
+            <p className="text-sm text-gray-400 text-center py-4">Loading farms...</p>
+          ) : farms.filter(f => f.isActive).length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-4">No active farms. Add one above.</p>
+          ) : (
+            farms.filter(f => f.isActive).map(farm => (
+              <div key={farm.id} className="border rounded-lg p-3">
+                {editFarm?.id === farm.id ? (
+                  <div className="space-y-2">
+                    <Input
+                      value={editFarm.name}
+                      onChange={e => setEditFarm({ ...editFarm, name: e.target.value })}
+                      className="h-8 text-sm"
+                      autoFocus
+                    />
+                    <div className="flex gap-1">
+                      <Button size="sm" onClick={() => handleRenameFarm(farm, editFarm.name)}
+                        disabled={saving || !editFarm.name.trim()} className="h-7 text-xs gap-1">
+                        {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                        Save
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditFarm(null)} className="h-7 text-xs">
+                        Cancel
+                      </Button>
                     </div>
-                  ) : (
-                    <>
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium text-sm">{farm.name}</p>
-                          <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-500">
-                            <span className="flex items-center gap-1">
-                              <Navigation className="h-3 w-3" /> {farm.location}
-                            </span>
-                            {farm.phone && (
-                              <span className="flex items-center gap-1">
-                                <Phone className="h-3 w-3" /> {farm.phone}
-                              </span>
-                            )}
-                          </div>
-                          {farm.address && (
-                            <p className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
-                              <MapPin className="h-3 w-3" /> {farm.address}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Button size="sm" variant="outline" className="h-7 text-[10px] px-2 gap-1"
-                            onClick={() => setEditFarm(farm)}>
-                            <Pencil className="h-3 w-3" /> Rename
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 text-[10px] px-2 text-red-500 hover:text-red-700"
-                            onClick={() => setDeleteConfirm(farm.id)}>
-                            <Trash2 className="h-3 w-3" /> Remove
-                          </Button>
-                        </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-medium text-sm">{farm.name}</p>
+                      <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <Navigation className="h-3 w-3" /> {farm.location}
+                        </span>
+                        {farm.phone && (
+                          <span className="flex items-center gap-1">
+                            <Phone className="h-3 w-3" /> {farm.phone}
+                          </span>
+                        )}
                       </div>
-                    </>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        </ScrollArea>
+                      {farm.address && (
+                        <p className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                          <MapPin className="h-3 w-3" /> {farm.address}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button size="sm" variant="outline" className="h-7 text-xs px-2 gap-1"
+                        onClick={() => setEditFarm(farm)}>
+                        <Pencil className="h-3 w-3" /> Rename
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs px-2 text-red-500 hover:text-red-700"
+                        onClick={() => setDeleteConfirm(farm.id)}>
+                        <Trash2 className="h-3 w-3" /> Remove
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
 
-        {/* Deactivated farms */}
+        {/* Inactive farms */}
         {farms.filter(f => !f.isActive).length > 0 && (
           <div className="mt-3">
             <Separator className="mb-2" />
@@ -384,7 +376,6 @@ function FarmLocationsManager() {
                     <p className="font-medium text-gray-500">{farm.name}</p>
                     <p className="text-[10px] text-gray-400">{farm.location}</p>
                   </div>
-                  <Badge variant="secondary" className="text-[10px]">Inactive</Badge>
                 </div>
               ))}
             </div>
@@ -429,16 +420,15 @@ function FullDataReset() {
   const handleFullReset = async () => {
     setSaving(true)
     try {
-      const res = await fetch('/api/full-reset', {
+      const res = await fetch('/api/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: currentUser?.role, confirm: true }),
+        body: JSON.stringify({ role: currentUser?.role, action: 'fullReset', confirm: true }),
       })
       if (res.ok) {
         const result = await res.json()
         toast.success('All data has been wiped. The system is ready for a fresh start.')
         setConfirmStep(0)
-        // Reload page after short delay
         setTimeout(() => window.location.reload(), 1500)
       } else {
         const err = await res.json().catch(() => ({}))
@@ -478,7 +468,7 @@ function FullDataReset() {
             <li>All pending amendment requests</li>
           </ul>
           <p className="text-[11px] text-red-700 mt-1">
-            Your CEO account will remain but all other staff will be deactivated. You will need to re-add farms and staff through the seed process.
+            Your CEO account will remain but all other staff will be deactivated. You will need to re-add farms and staff.
           </p>
         </div>
 

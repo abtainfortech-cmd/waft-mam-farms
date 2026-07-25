@@ -27,11 +27,29 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT update farm
+// PUT update farm (rename, soft-delete, re-activate, or update details)
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, ...data } = body
+    const { id, action, ...data } = body
+
+    if (!id) {
+      return NextResponse.json({ error: 'Farm id is required' }, { status: 400 })
+    }
+
+    // Handle soft-delete action
+    if (action === 'delete') {
+      const farm = await db.farm.update({ where: { id }, data: { isActive: false } })
+      return NextResponse.json({ message: 'Farm removed', farm })
+    }
+
+    // Handle re-activate action
+    if (action === 'restore') {
+      const farm = await db.farm.update({ where: { id }, data: { isActive: true } })
+      return NextResponse.json({ message: 'Farm restored', farm })
+    }
+
+    // Default: update fields
     const farm = await db.farm.update({ where: { id }, data })
     return NextResponse.json(farm)
   } catch (error) {

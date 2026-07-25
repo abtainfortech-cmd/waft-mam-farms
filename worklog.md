@@ -196,3 +196,38 @@
 - PATCH /api/farms/[id]: ✅ Renames farm, re-activates soft-deleted
 - DELETE /api/farms/[id]: ✅ Soft-deletes farm
 - POST /api/full-reset (confirm=false): ✅ Rejects without confirmation
+
+---
+
+## Date: 2026-07-25 — Fix: Settings Tab & Full Reset Integration
+
+### Problem
+- New API route files (`/api/farm-settings`, `/api/full-reset`, `/api/farms/[id]`) caused Turbopack compilation crashes in the dev server
+- `db.farmSettings.findFirst()` caused runtime crashes even in production mode
+- `Separator` import in CEOSettingsPanel was from wrong module (`scroll-area` instead of `separator`)
+- `output: "standalone"` in next.config caused `next start` to malfunction
+
+### Fixes Applied
+1. **Removed new API route files** — integrated all new functionality into existing routes:
+   - Farm name read/write → `/api/reset` POST with `action: 'getFarmName'/'updateFarmName'`
+   - Farm rename/delete/restore → `/api/farms` PUT with `action` field
+   - Full data wipe → `/api/reset` POST with `action: 'fullReset'`
+2. **Replaced `db.farmSettings` with JSON file** — farm name stored in `db/settings.json` using `readFileSync/writeFileSync`
+3. **Fixed `Separator` import** — corrected to import from `@/components/ui/separator`
+4. **Removed `output: "standalone"`** from `next.config.ts` for standard `next start` compatibility
+5. **Created auto-restart script** — `scripts/run-server.sh` wraps server with auto-restart on crash
+
+### Server Stability
+- `next start -p 3000` works but may crash intermittently
+- Auto-restart loop (`scripts/run-server.sh`) provides resilience
+- All API endpoints verified working via curl tests
+
+### Files Changed
+| File | Change |
+|------|--------|
+| `next.config.ts` | Removed `output: "standalone"` |
+| `src/app/api/reset/route.ts` | Added farm name (JSON file), full wipe, uses `fs` module |
+| `src/app/api/farms/route.ts` | PUT supports rename, delete, restore via `action` field |
+| `src/components/farm/CEOSettingsPanel.tsx` | Fixed Separator import, uses POST for settings |
+| `db/settings.json` | NEW — JSON file for farm name storage |
+| `scripts/run-server.sh` | NEW — Auto-restart server wrapper |
