@@ -96,3 +96,24 @@ Stage Summary:
 - Conflict detection prevents silent data overwrites on egg sales, bird sales, expenses, and vaccinations
 - 3 new utility files created: conflict.ts, useConflictSave.ts, ConflictWarning.tsx
 - Pre-existing lint warnings in LiveSyncIndicator.tsx and useAutoRefresh.ts are unrelated to these changes
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix form save bug across all dashboards - Select components not submitting values
+
+Work Log:
+- Investigated root cause: shadcn/ui `<Select>` (Radix UI) doesn't render native `<select>` elements, so `form.elements.namedItem()` returns null, causing silent crashes
+- Bug affected all 4 dashboards with forms: FarmHand (3 forms), Sales (3 forms), Accountant (1 form), Vet (3 forms) - 7 forms total, 20 broken namedItem() calls
+- Fix: Replaced DOM-based namedItem() reads with React useState for each Select field, added value/onValueChange props to all Select components
+- Added try/catch with toast.error() to all 7 form submit handlers for proper error feedback
+- Added validation checks (e.g., "Please select a farm") before API calls
+- Auto-populate farm select from global selectedFarmId state
+- Found second bug: Prisma DateTime fields reject plain date strings (YYYY-MM-DD), need ISO-8601 format
+- Added normalizeDate() helper to all 9 API POST routes (eggs, mortality, feed, expenses, sales/eggs, sales/birds, health, vaccinations, treatments)
+- Verified all 9 API endpoints return HTTP 201 with valid records
+
+Stage Summary:
+- Fixed 7 forms across 4 dashboard components
+- Fixed 9 API route handlers with date normalization
+- All forms now save correctly - verified via API tests (all return 201)
+- Error handling added so users see toast notifications on failure

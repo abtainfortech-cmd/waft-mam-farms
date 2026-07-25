@@ -34,6 +34,22 @@ export function SalesDashboard() {
   const [birdSales, setBirdSales] = useState<BirdSale[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Form Select state (Radix Select doesn't use native form elements)
+  const [eggSaleCustomerId, setEggSaleCustomerId] = useState('')
+  const [eggSaleFarmId, setEggSaleFarmId] = useState(selectedFarmId || '')
+  const [eggSalePayment, setEggSalePayment] = useState('Paid')
+  const [birdSaleCustomerId, setBirdSaleCustomerId] = useState('')
+  const [birdSaleFarmId, setBirdSaleFarmId] = useState(selectedFarmId || '')
+  const [birdSalePayment, setBirdSalePayment] = useState('Paid')
+  const [customerType, setCustomerType] = useState('Retail')
+
+  useEffect(() => {
+    if (selectedFarmId) {
+      setEggSaleFarmId(selectedFarmId)
+      setBirdSaleFarmId(selectedFarmId)
+    }
+  }, [selectedFarmId])
+
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
@@ -74,59 +90,68 @@ export function SalesDashboard() {
   const submitEggSale = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const f = e.currentTarget
-    const crates = parseInt((f.elements.namedItem('crateCount') as HTMLInputElement).value) || 0
-    const price = parseFloat((f.elements.namedItem('pricePerCrate') as HTMLInputElement).value) || 0
-    const data = {
-      customerId: (f.elements.namedItem('customerId') as HTMLSelectElement).value || null,
-      date: (f.elements.namedItem('date') as HTMLInputElement).value || today,
-      crateCount: crates,
-      eggsPerCrate: parseInt((f.elements.namedItem('eggsPerCrate') as HTMLInputElement).value) || 30,
-      pricePerCrate: price,
-      totalAmount: crates * price,
-      paymentStatus: (f.elements.namedItem('paymentStatus') as HTMLSelectElement).value,
-      amountPaid: (f.elements.namedItem('paymentStatus') as HTMLSelectElement).value === 'Paid' ? crates * price : 0,
-      farmId: (f.elements.namedItem('farmId') as HTMLSelectElement).value,
-      recordedBy: 'Sales',
-    }
-    const res = await fetch('/api/sales/eggs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-    if (res.ok) { toast.success('Egg sale recorded!'); f.reset(); fetchData() }
-    else toast.error('Failed to record sale')
+    try {
+      const crates = parseInt((f.elements.namedItem('crateCount') as HTMLInputElement).value) || 0
+      const price = parseFloat((f.elements.namedItem('pricePerCrate') as HTMLInputElement).value) || 0
+      const data = {
+        customerId: eggSaleCustomerId || null,
+        date: (f.elements.namedItem('date') as HTMLInputElement).value || today,
+        crateCount: crates,
+        eggsPerCrate: parseInt((f.elements.namedItem('eggsPerCrate') as HTMLInputElement).value) || 30,
+        pricePerCrate: price,
+        totalAmount: crates * price,
+        paymentStatus: eggSalePayment,
+        amountPaid: eggSalePayment === 'Paid' ? crates * price : 0,
+        farmId: eggSaleFarmId,
+        recordedBy: 'Sales',
+      }
+      if (!data.farmId) { toast.error('Please select a farm'); return }
+      const res = await fetch('/api/sales/eggs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (res.ok) { toast.success('Egg sale recorded!'); f.reset(); fetchData() }
+      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to record sale') }
+    } catch (err) { console.error(err); toast.error('Failed to record sale') }
   }
 
   const submitBirdSale = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const f = e.currentTarget
-    const qty = parseInt((f.elements.namedItem('quantity') as HTMLInputElement).value) || 0
-    const price = parseFloat((f.elements.namedItem('pricePerBird') as HTMLInputElement).value) || 0
-    const data = {
-      customerId: (f.elements.namedItem('customerId') as HTMLSelectElement).value || null,
-      date: (f.elements.namedItem('date') as HTMLInputElement).value || today,
-      quantity: qty,
-      weightPerBirdKg: parseFloat((f.elements.namedItem('weightPerBirdKg') as HTMLInputElement).value) || null,
-      pricePerBird: price,
-      totalAmount: qty * price,
-      paymentStatus: (f.elements.namedItem('paymentStatus') as HTMLSelectElement).value,
-      amountPaid: (f.elements.namedItem('paymentStatus') as HTMLSelectElement).value === 'Paid' ? qty * price : 0,
-      farmId: (f.elements.namedItem('farmId') as HTMLSelectElement).value,
-      recordedBy: 'Sales',
-    }
-    const res = await fetch('/api/sales/birds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-    if (res.ok) { toast.success('Bird sale recorded!'); f.reset(); fetchData() }
-    else toast.error('Failed to record sale')
+    try {
+      const qty = parseInt((f.elements.namedItem('quantity') as HTMLInputElement).value) || 0
+      const price = parseFloat((f.elements.namedItem('pricePerBird') as HTMLInputElement).value) || 0
+      const data = {
+        customerId: birdSaleCustomerId || null,
+        date: (f.elements.namedItem('date') as HTMLInputElement).value || today,
+        quantity: qty,
+        weightPerBirdKg: parseFloat((f.elements.namedItem('weightPerBirdKg') as HTMLInputElement).value) || null,
+        pricePerBird: price,
+        totalAmount: qty * price,
+        paymentStatus: birdSalePayment,
+        amountPaid: birdSalePayment === 'Paid' ? qty * price : 0,
+        farmId: birdSaleFarmId,
+        recordedBy: 'Sales',
+      }
+      if (!data.farmId) { toast.error('Please select a farm'); return }
+      const res = await fetch('/api/sales/birds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (res.ok) { toast.success('Bird sale recorded!'); f.reset(); fetchData() }
+      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to record sale') }
+    } catch (err) { console.error(err); toast.error('Failed to record sale') }
   }
 
   const addCustomer = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const f = e.currentTarget
-    const data = {
-      name: (f.elements.namedItem('name') as HTMLInputElement).value,
-      phone: (f.elements.namedItem('phone') as HTMLInputElement).value || null,
-      location: (f.elements.namedItem('location') as HTMLInputElement).value || null,
-      customerType: (f.elements.namedItem('customerType') as HTMLSelectElement).value,
-    }
-    const res = await fetch('/api/customers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-    if (res.ok) { toast.success('Customer added!'); f.reset(); fetchData() }
-    else toast.error('Failed to add customer')
+    try {
+      const data = {
+        name: (f.elements.namedItem('name') as HTMLInputElement).value,
+        phone: (f.elements.namedItem('phone') as HTMLInputElement).value || null,
+        location: (f.elements.namedItem('location') as HTMLInputElement).value || null,
+        customerType: customerType,
+      }
+      if (!data.name) { toast.error('Please enter customer name'); return }
+      const res = await fetch('/api/customers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (res.ok) { toast.success('Customer added!'); f.reset(); fetchData() }
+      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to add customer') }
+    } catch (err) { console.error(err); toast.error('Failed to add customer') }
   }
 
   return (
@@ -209,7 +234,7 @@ export function SalesDashboard() {
               <form onSubmit={submitEggSale} className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div>
                   <Label className="text-xs">Customer</Label>
-                  <Select name="customerId">
+                  <Select value={eggSaleCustomerId} onValueChange={setEggSaleCustomerId}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Walk-in" /></SelectTrigger>
                     <SelectContent>
                       {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
@@ -218,7 +243,7 @@ export function SalesDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Farm *</Label>
-                  <Select name="farmId" required>
+                  <Select value={eggSaleFarmId} onValueChange={setEggSaleFarmId}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select farm" /></SelectTrigger>
                     <SelectContent>
                       {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
@@ -239,7 +264,7 @@ export function SalesDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Payment</Label>
-                  <Select name="paymentStatus" defaultValue="Paid">
+                  <Select value={eggSalePayment} onValueChange={setEggSalePayment}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Paid">Paid</SelectItem>
@@ -293,7 +318,7 @@ export function SalesDashboard() {
               <form onSubmit={submitBirdSale} className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div>
                   <Label className="text-xs">Customer</Label>
-                  <Select name="customerId">
+                  <Select value={birdSaleCustomerId} onValueChange={setBirdSaleCustomerId}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Walk-in" /></SelectTrigger>
                     <SelectContent>
                       {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
@@ -302,7 +327,7 @@ export function SalesDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Farm *</Label>
-                  <Select name="farmId" required>
+                  <Select value={birdSaleFarmId} onValueChange={setBirdSaleFarmId}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select farm" /></SelectTrigger>
                     <SelectContent>
                       {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
@@ -327,7 +352,7 @@ export function SalesDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Payment</Label>
-                  <Select name="paymentStatus" defaultValue="Paid">
+                  <Select value={birdSalePayment} onValueChange={setBirdSalePayment}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Paid">Paid</SelectItem>
@@ -392,7 +417,7 @@ export function SalesDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Type</Label>
-                  <Select name="customerType" defaultValue="Retail">
+                  <Select value={customerType} onValueChange={setCustomerType}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Wholesale">Wholesale</SelectItem>

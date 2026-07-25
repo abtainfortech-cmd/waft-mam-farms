@@ -35,6 +35,15 @@ export function AccountantDashboard() {
   const [dashboard, setDashboard] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
+  // Form Select state (Radix Select doesn't use native form elements)
+  const [expFarmId, setExpFarmId] = useState(selectedFarmId || '')
+  const [expCategory, setExpCategory] = useState('')
+  const [expPaymentStatus, setExpPaymentStatus] = useState('Paid')
+
+  useEffect(() => {
+    if (selectedFarmId) setExpFarmId(selectedFarmId)
+  }, [selectedFarmId])
+
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
@@ -91,21 +100,24 @@ export function AccountantDashboard() {
   const submitExpense = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const f = e.currentTarget
-    const data = {
-      farmId: (f.elements.namedItem('farmId') as HTMLSelectElement).value,
-      date: (f.elements.namedItem('date') as HTMLInputElement).value || today,
-      category: (f.elements.namedItem('category') as HTMLSelectElement).value,
-      description: (f.elements.namedItem('description') as HTMLInputElement).value,
-      amount: parseFloat((f.elements.namedItem('amount') as HTMLInputElement).value) || 0,
-      paymentStatus: (f.elements.namedItem('paymentStatus') as HTMLSelectElement).value,
-      dueDate: (f.elements.namedItem('dueDate') as HTMLInputElement).value || null,
-      vendor: (f.elements.namedItem('vendor') as HTMLInputElement).value || null,
-      receiptNo: (f.elements.namedItem('receiptNo') as HTMLInputElement).value || null,
-      recordedBy: 'Accountant',
-    }
-    const res = await fetch('/api/expenses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-    if (res.ok) { toast.success('Expense recorded!'); f.reset(); fetchData() }
-    else toast.error('Failed to record expense')
+    try {
+      const data = {
+        farmId: expFarmId,
+        date: (f.elements.namedItem('date') as HTMLInputElement).value || today,
+        category: expCategory,
+        description: (f.elements.namedItem('description') as HTMLInputElement).value,
+        amount: parseFloat((f.elements.namedItem('amount') as HTMLInputElement).value) || 0,
+        paymentStatus: expPaymentStatus,
+        dueDate: (f.elements.namedItem('dueDate') as HTMLInputElement).value || null,
+        vendor: (f.elements.namedItem('vendor') as HTMLInputElement).value || null,
+        receiptNo: (f.elements.namedItem('receiptNo') as HTMLInputElement).value || null,
+        recordedBy: 'Accountant',
+      }
+      if (!data.farmId || !data.category) { toast.error('Please select farm and category'); return }
+      const res = await fetch('/api/expenses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (res.ok) { toast.success('Expense recorded!'); f.reset(); fetchData() }
+      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to record expense') }
+    } catch (err) { console.error(err); toast.error('Failed to record expense') }
   }
 
   if (loading && !dashboard) return <div className="grid grid-cols-2 gap-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
@@ -221,7 +233,7 @@ export function AccountantDashboard() {
               <form onSubmit={submitExpense} className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div>
                   <Label className="text-xs">Farm *</Label>
-                  <Select name="farmId" required>
+                  <Select value={expFarmId} onValueChange={setExpFarmId}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select farm" /></SelectTrigger>
                     <SelectContent>
                       {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
@@ -230,7 +242,7 @@ export function AccountantDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Category *</Label>
-                  <Select name="category" required>
+                  <Select value={expCategory} onValueChange={setExpCategory}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
                       {['Feed', 'Medication', 'Utilities', 'Labour', 'Transport', 'Equipment', 'Maintenance', 'Other'].map(c => (
@@ -249,7 +261,7 @@ export function AccountantDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Payment Status</Label>
-                  <Select name="paymentStatus" defaultValue="Paid">
+                  <Select value={expPaymentStatus} onValueChange={setExpPaymentStatus}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Paid">Paid</SelectItem>

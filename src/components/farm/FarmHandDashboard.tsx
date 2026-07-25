@@ -31,6 +31,23 @@ export function FarmHandDashboard() {
   const [feedRecords, setFeedRecords] = useState<FeedRecord[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Form Select state (Radix Select doesn't use native form elements)
+  const [eggFarmId, setEggFarmId] = useState(selectedFarmId || '')
+  const [mortFarmId, setMortFarmId] = useState(selectedFarmId || '')
+  const [mortFlockId, setMortFlockId] = useState('')
+  const [mortCause, setMortCause] = useState('')
+  const [feedFarmId, setFeedFarmId] = useState(selectedFarmId || '')
+  const [feedType, setFeedType] = useState('')
+
+  // Sync form defaults when global farm changes
+  useEffect(() => {
+    if (selectedFarmId) {
+      setEggFarmId(selectedFarmId)
+      setMortFarmId(selectedFarmId)
+      setFeedFarmId(selectedFarmId)
+    }
+  }, [selectedFarmId])
+
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
@@ -73,53 +90,62 @@ export function FarmHandDashboard() {
   const submitEggRecord = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const form = e.currentTarget
-    const data = {
-      farmId: (form.elements.namedItem('farmId') as HTMLSelectElement).value,
-      date: today,
-      crateCount: parseInt((form.elements.namedItem('crateCount') as HTMLInputElement).value) || 0,
-      eggsPerCrate: parseInt((form.elements.namedItem('eggsPerCrate') as HTMLInputElement).value) || 30,
-      brokenCount: parseInt((form.elements.namedItem('brokenCount') as HTMLInputElement).value) || 0,
-      soiledCount: parseInt((form.elements.namedItem('soiledCount') as HTMLInputElement).value) || 0,
-      recordedBy: 'Farm Hand',
-    }
-    const res = await fetch('/api/eggs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-    if (res.ok) { toast.success('Egg collection recorded!'); form.reset(); fetchData() }
-    else toast.error('Failed to record')
+    try {
+      const data = {
+        farmId: eggFarmId,
+        date: today,
+        crateCount: parseInt((form.elements.namedItem('crateCount') as HTMLInputElement).value) || 0,
+        eggsPerCrate: parseInt((form.elements.namedItem('eggsPerCrate') as HTMLInputElement).value) || 30,
+        brokenCount: parseInt((form.elements.namedItem('brokenCount') as HTMLInputElement).value) || 0,
+        soiledCount: parseInt((form.elements.namedItem('soiledCount') as HTMLInputElement).value) || 0,
+        recordedBy: 'Farm Hand',
+      }
+      if (!data.farmId) { toast.error('Please select a farm'); return }
+      const res = await fetch('/api/eggs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (res.ok) { toast.success('Egg collection recorded!'); form.reset(); fetchData() }
+      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to record') }
+    } catch (err) { console.error(err); toast.error('Failed to record egg collection') }
   }
 
   const submitMortality = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const form = e.currentTarget
-    const data = {
-      farmId: (form.elements.namedItem('farmId') as HTMLSelectElement).value,
-      flockId: (form.elements.namedItem('flockId') as HTMLSelectElement).value,
-      date: today,
-      count: parseInt((form.elements.namedItem('count') as HTMLInputElement).value) || 0,
-      cause: (form.elements.namedItem('cause') as HTMLSelectElement).value,
-      notes: (form.elements.namedItem('notes') as HTMLTextAreaElement).value,
-      recordedBy: 'Farm Hand',
-    }
-    const res = await fetch('/api/mortality', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-    if (res.ok) { toast.success('Mortality recorded'); form.reset(); fetchData() }
-    else toast.error('Failed to record')
+    try {
+      const data = {
+        farmId: mortFarmId,
+        flockId: mortFlockId,
+        date: today,
+        count: parseInt((form.elements.namedItem('count') as HTMLInputElement).value) || 0,
+        cause: mortCause || 'Unknown',
+        notes: (form.elements.namedItem('notes') as HTMLTextAreaElement)?.value || '',
+        recordedBy: 'Farm Hand',
+      }
+      if (!data.farmId || !data.flockId) { toast.error('Please select farm and flock'); return }
+      const res = await fetch('/api/mortality', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (res.ok) { toast.success('Mortality recorded'); form.reset(); fetchData() }
+      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to record') }
+    } catch (err) { console.error(err); toast.error('Failed to record mortality') }
   }
 
   const submitFeed = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const form = e.currentTarget
-    const data = {
-      farmId: (form.elements.namedItem('farmId') as HTMLSelectElement).value,
-      date: today,
-      feedType: (form.elements.namedItem('feedType') as HTMLSelectElement).value,
-      bagsUsed: parseFloat((form.elements.namedItem('bagsUsed') as HTMLInputElement).value) || 0,
-      bagWeightKg: parseFloat((form.elements.namedItem('bagWeightKg') as HTMLInputElement).value) || 50,
-      costPerBag: parseFloat((form.elements.namedItem('costPerBag') as HTMLInputElement).value) || 0,
-      supplier: (form.elements.namedItem('supplier') as HTMLInputElement).value,
-      recordedBy: 'Farm Hand',
-    }
-    const res = await fetch('/api/feed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-    if (res.ok) { toast.success('Feed record saved'); form.reset(); fetchData() }
-    else toast.error('Failed to save feed record')
+    try {
+      const data = {
+        farmId: feedFarmId,
+        date: today,
+        feedType: feedType,
+        bagsUsed: parseFloat((form.elements.namedItem('bagsUsed') as HTMLInputElement).value) || 0,
+        bagWeightKg: parseFloat((form.elements.namedItem('bagWeightKg') as HTMLInputElement).value) || 50,
+        costPerBag: parseFloat((form.elements.namedItem('costPerBag') as HTMLInputElement).value) || 0,
+        supplier: (form.elements.namedItem('supplier') as HTMLInputElement)?.value || '',
+        recordedBy: 'Farm Hand',
+      }
+      if (!data.farmId || !data.feedType) { toast.error('Please select farm and feed type'); return }
+      const res = await fetch('/api/feed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (res.ok) { toast.success('Feed record saved'); form.reset(); fetchData() }
+      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to save feed record') }
+    } catch (err) { console.error(err); toast.error('Failed to save feed record') }
   }
 
   if (loading && farms.length === 0) return <div className="grid grid-cols-2 gap-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
@@ -208,7 +234,7 @@ export function FarmHandDashboard() {
               <form onSubmit={submitEggRecord} className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div>
                   <Label className="text-xs">Farm *</Label>
-                  <Select name="farmId" required>
+                  <Select value={eggFarmId} onValueChange={setEggFarmId}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select farm" /></SelectTrigger>
                     <SelectContent>
                       {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
@@ -250,7 +276,7 @@ export function FarmHandDashboard() {
               <form onSubmit={submitMortality} className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div>
                   <Label className="text-xs">Farm *</Label>
-                  <Select name="farmId" required>
+                  <Select value={mortFarmId} onValueChange={setMortFarmId}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select farm" /></SelectTrigger>
                     <SelectContent>
                       {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
@@ -259,7 +285,7 @@ export function FarmHandDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Flock *</Label>
-                  <Select name="flockId" required>
+                  <Select value={mortFlockId} onValueChange={setMortFlockId}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select flock" /></SelectTrigger>
                     <SelectContent>
                       {farms.flatMap(f => f.flocks.map(fl => <SelectItem key={fl.id} value={fl.id}>{fl.name} ({f.name})</SelectItem>))}
@@ -272,7 +298,7 @@ export function FarmHandDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Likely Cause</Label>
-                  <Select name="cause">
+                  <Select value={mortCause} onValueChange={setMortCause}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select cause" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Disease">Disease</SelectItem>
@@ -307,7 +333,7 @@ export function FarmHandDashboard() {
               <form onSubmit={submitFeed} className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div>
                   <Label className="text-xs">Farm *</Label>
-                  <Select name="farmId" required>
+                  <Select value={feedFarmId} onValueChange={setFeedFarmId}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select farm" /></SelectTrigger>
                     <SelectContent>
                       {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
@@ -316,7 +342,7 @@ export function FarmHandDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Feed Type *</Label>
-                  <Select name="feedType" required>
+                  <Select value={feedType} onValueChange={setFeedType}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select type" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Layer mash">Layer Mash</SelectItem>

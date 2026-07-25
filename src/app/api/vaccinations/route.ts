@@ -21,13 +21,23 @@ export async function GET(request: NextRequest) {
   }
 }
 
+function normalizeDate(val: unknown): Date | undefined {
+  if (!val) return undefined
+  if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) return new Date(val + 'T00:00:00.000Z')
+  if (val instanceof Date) return val
+  return new Date(val as string)
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    if (body.scheduledDate) body.scheduledDate = normalizeDate(body.scheduledDate)
+    if (body.administeredDate) body.administeredDate = normalizeDate(body.administeredDate)
     const vaccination = await db.vaccination.create({ data: body })
     return NextResponse.json(vaccination, { status: 201 })
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to create vaccination' }, { status: 500 })
+  } catch (error: any) {
+    console.error('Vaccination POST error:', error.message)
+    return NextResponse.json({ error: 'Failed to create vaccination', detail: error.message }, { status: 500 })
   }
 }
 

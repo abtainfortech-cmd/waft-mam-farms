@@ -31,6 +31,26 @@ export function VetDashboard() {
   const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Form Select state (Radix Select doesn't use native form elements)
+  const [healthFarmId, setHealthFarmId] = useState(selectedFarmId || '')
+  const [healthFlockId, setHealthFlockId] = useState('')
+  const [healthStatus, setHealthStatus] = useState('')
+  const [healthBodyCondition, setHealthBodyCondition] = useState('')
+  const [vacFarmId, setVacFarmId] = useState(selectedFarmId || '')
+  const [vacFlockId, setVacFlockId] = useState('')
+  const [vacVaccineName, setVacVaccineName] = useState('')
+  const [vacMethod, setVacMethod] = useState('')
+  const [treatFarmId, setTreatFarmId] = useState(selectedFarmId || '')
+  const [treatFlockId, setTreatFlockId] = useState('')
+
+  useEffect(() => {
+    if (selectedFarmId) {
+      setHealthFarmId(selectedFarmId)
+      setVacFarmId(selectedFarmId)
+      setTreatFarmId(selectedFarmId)
+    }
+  }, [selectedFarmId])
+
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
@@ -75,59 +95,68 @@ export function VetDashboard() {
   const submitHealthCheck = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const f = e.currentTarget
-    const data = {
-      flockId: (f.elements.namedItem('flockId') as HTMLSelectElement).value,
-      farmId: (f.elements.namedItem('farmId') as HTMLSelectElement).value,
-      date: today,
-      overallStatus: (f.elements.namedItem('overallStatus') as HTMLSelectElement).value,
-      symptoms: (f.elements.namedItem('symptoms') as HTMLInputElement).value || null,
-      temperature: parseFloat((f.elements.namedItem('temperature') as HTMLInputElement).value) || null,
-      bodyCondition: (f.elements.namedItem('bodyCondition') as HTMLSelectElement).value || null,
-      recommendations: (f.elements.namedItem('recommendations') as HTMLTextAreaElement).value || null,
-      vetOfficer: 'Vet Officer',
-    }
-    const res = await fetch('/api/health', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-    if (res.ok) { toast.success('Health check recorded!'); f.reset(); fetchData() }
-    else toast.error('Failed to save')
+    try {
+      const data = {
+        flockId: healthFlockId,
+        farmId: healthFarmId,
+        date: today,
+        overallStatus: healthStatus,
+        symptoms: (f.elements.namedItem('symptoms') as HTMLInputElement).value || null,
+        temperature: parseFloat((f.elements.namedItem('temperature') as HTMLInputElement).value) || null,
+        bodyCondition: healthBodyCondition || null,
+        recommendations: (f.elements.namedItem('recommendations') as HTMLTextAreaElement)?.value || null,
+        vetOfficer: 'Vet Officer',
+      }
+      if (!data.farmId || !data.flockId || !data.overallStatus) { toast.error('Please select farm, flock and status'); return }
+      const res = await fetch('/api/health', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (res.ok) { toast.success('Health check recorded!'); f.reset(); fetchData() }
+      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to save') }
+    } catch (err) { console.error(err); toast.error('Failed to save health check') }
   }
 
   const submitVaccination = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const f = e.currentTarget
-    const data = {
-      flockId: (f.elements.namedItem('flockId') as HTMLSelectElement).value,
-      farmId: (f.elements.namedItem('farmId') as HTMLSelectElement).value,
-      vaccineName: (f.elements.namedItem('vaccineName') as HTMLSelectElement).value,
-      scheduledDate: (f.elements.namedItem('scheduledDate') as HTMLInputElement).value || today,
-      status: 'Scheduled',
-      method: (f.elements.namedItem('method') as HTMLSelectElement).value || null,
-      dosage: (f.elements.namedItem('dosage') as HTMLInputElement).value || null,
-      cost: parseFloat((f.elements.namedItem('cost') as HTMLInputElement).value) || null,
-      batchNo: (f.elements.namedItem('batchNo') as HTMLInputElement).value || null,
-    }
-    const res = await fetch('/api/vaccinations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-    if (res.ok) { toast.success('Vaccination scheduled!'); f.reset(); fetchData() }
-    else toast.error('Failed to schedule')
+    try {
+      const data = {
+        flockId: vacFlockId,
+        farmId: vacFarmId,
+        vaccineName: vacVaccineName,
+        scheduledDate: (f.elements.namedItem('scheduledDate') as HTMLInputElement).value || today,
+        status: 'Scheduled',
+        method: vacMethod || null,
+        dosage: (f.elements.namedItem('dosage') as HTMLInputElement).value || null,
+        cost: parseFloat((f.elements.namedItem('cost') as HTMLInputElement).value) || null,
+        batchNo: (f.elements.namedItem('batchNo') as HTMLInputElement).value || null,
+      }
+      if (!data.farmId || !data.flockId || !data.vaccineName) { toast.error('Please select farm, flock and vaccine'); return }
+      const res = await fetch('/api/vaccinations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (res.ok) { toast.success('Vaccination scheduled!'); f.reset(); fetchData() }
+      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to schedule') }
+    } catch (err) { console.error(err); toast.error('Failed to schedule vaccination') }
   }
 
   const submitTreatment = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const f = e.currentTarget
-    const data = {
-      flockId: (f.elements.namedItem('flockId') as HTMLSelectElement).value,
-      farmId: (f.elements.namedItem('farmId') as HTMLSelectElement).value,
-      date: today,
-      diagnosis: (f.elements.namedItem('diagnosis') as HTMLInputElement).value,
-      medication: (f.elements.namedItem('medication') as HTMLInputElement).value,
-      dosage: (f.elements.namedItem('dosage') as HTMLInputElement).value || null,
-      duration: (f.elements.namedItem('duration') as HTMLInputElement).value || null,
-      cost: parseFloat((f.elements.namedItem('cost') as HTMLInputElement).value) || null,
-      status: 'Ongoing',
-      vetOfficer: 'Vet Officer',
-    }
-    const res = await fetch('/api/treatments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-    if (res.ok) { toast.success('Treatment recorded!'); f.reset(); fetchData() }
-    else toast.error('Failed to save')
+    try {
+      const data = {
+        flockId: treatFlockId,
+        farmId: treatFarmId,
+        date: today,
+        diagnosis: (f.elements.namedItem('diagnosis') as HTMLInputElement).value,
+        medication: (f.elements.namedItem('medication') as HTMLInputElement).value,
+        dosage: (f.elements.namedItem('dosage') as HTMLInputElement).value || null,
+        duration: (f.elements.namedItem('duration') as HTMLInputElement).value || null,
+        cost: parseFloat((f.elements.namedItem('cost') as HTMLInputElement).value) || null,
+        status: 'Ongoing',
+        vetOfficer: 'Vet Officer',
+      }
+      if (!data.farmId || !data.flockId || !data.diagnosis || !data.medication) { toast.error('Please select farm, flock, diagnosis and medication'); return }
+      const res = await fetch('/api/treatments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (res.ok) { toast.success('Treatment recorded!'); f.reset(); fetchData() }
+      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to save') }
+    } catch (err) { console.error(err); toast.error('Failed to save treatment') }
   }
 
   const markVaccinationDone = async (id: string) => {
@@ -263,7 +292,7 @@ export function VetDashboard() {
               <form onSubmit={submitVaccination} className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div>
                   <Label className="text-xs">Farm *</Label>
-                  <Select name="farmId" required>
+                  <Select value={vacFarmId} onValueChange={setVacFarmId}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select farm" /></SelectTrigger>
                     <SelectContent>
                       {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
@@ -272,7 +301,7 @@ export function VetDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Flock *</Label>
-                  <Select name="flockId" required>
+                  <Select value={vacFlockId} onValueChange={setVacFlockId}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select flock" /></SelectTrigger>
                     <SelectContent>
                       {farms.flatMap(f => f.flocks.map(fl => <SelectItem key={fl.id} value={fl.id}>{fl.name} ({f.name})</SelectItem>))}
@@ -281,7 +310,7 @@ export function VetDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Vaccine *</Label>
-                  <Select name="vaccineName" required>
+                  <Select value={vacVaccineName} onValueChange={setVacVaccineName}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select vaccine" /></SelectTrigger>
                     <SelectContent>
                       {['Newcastle Disease', 'Gumboro', 'Fowl Pox', 'Fowl Typhoid', 'Infectious Bronchitis', 'Coryza', 'Newcastle Booster', 'Marek\'s Disease', 'Coccidiosis'].map(v => (
@@ -296,7 +325,7 @@ export function VetDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Method</Label>
-                  <Select name="method">
+                  <Select value={vacMethod} onValueChange={setVacMethod}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Method" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Eye drop">Eye Drop</SelectItem>
@@ -387,7 +416,7 @@ export function VetDashboard() {
               <form onSubmit={submitHealthCheck} className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div>
                   <Label className="text-xs">Farm *</Label>
-                  <Select name="farmId" required>
+                  <Select value={healthFarmId} onValueChange={setHealthFarmId}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select farm" /></SelectTrigger>
                     <SelectContent>
                       {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
@@ -396,7 +425,7 @@ export function VetDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Flock *</Label>
-                  <Select name="flockId" required>
+                  <Select value={healthFlockId} onValueChange={setHealthFlockId}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select flock" /></SelectTrigger>
                     <SelectContent>
                       {farms.flatMap(f => f.flocks.map(fl => <SelectItem key={fl.id} value={fl.id}>{fl.name} ({f.name})</SelectItem>))}
@@ -405,7 +434,7 @@ export function VetDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Overall Status *</Label>
-                  <Select name="overallStatus" required>
+                  <Select value={healthStatus} onValueChange={setHealthStatus}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Status" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Good">Good</SelectItem>
@@ -421,7 +450,7 @@ export function VetDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Body Condition</Label>
-                  <Select name="bodyCondition">
+                  <Select value={healthBodyCondition} onValueChange={setHealthBodyCondition}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Good">Good</SelectItem>
@@ -495,7 +524,7 @@ export function VetDashboard() {
               <form onSubmit={submitTreatment} className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div>
                   <Label className="text-xs">Farm *</Label>
-                  <Select name="farmId" required>
+                  <Select value={treatFarmId} onValueChange={setTreatFarmId}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select farm" /></SelectTrigger>
                     <SelectContent>
                       {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
@@ -504,7 +533,7 @@ export function VetDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Flock *</Label>
-                  <Select name="flockId" required>
+                  <Select value={treatFlockId} onValueChange={setTreatFlockId}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select flock" /></SelectTrigger>
                     <SelectContent>
                       {farms.flatMap(f => f.flocks.map(fl => <SelectItem key={fl.id} value={fl.id}>{fl.name} ({f.name})</SelectItem>))}
