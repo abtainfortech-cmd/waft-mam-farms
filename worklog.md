@@ -134,3 +134,65 @@
 - DELETE /api/staff: ✅ Soft-deletes staff (isActive=false), login blocked
 - PUT /api/staff: ✅ Can reactivate staff
 - POST /api/reset: ✅ CEO can reset all record types
+
+---
+
+## Date: 2026-07-25 — CEO Settings & Full Reset Session
+
+### Login Fix
+- **Root cause**: Dev server was not running (port 3000 not in use)
+- **Fix**: Started `next dev -p 3000`, verified login API works via curl
+- Login now returns `{"success":true,"staff":{...}}` correctly
+
+### CEO Feature 1: Edit Farm Name
+- **New Model**: `FarmSettings` in schema.prisma (id, farmName, updatedAt)
+- **New API**: `GET/PUT /api/farm-settings` — CEO-only write access
+- GET creates default settings if none exist
+- PUT validates minimum 2 characters
+- **New Component**: `CEOSettingsPanel.tsx` with `FarmNameEditor` sub-component
+- Inline edit mode with save/cancel
+
+### CEO Feature 2: Add/Rename/Remove Farm Locations
+- **New API**: `PATCH /api/farms/[id]` — CEO-only, supports name/location/address/phone/isActive updates
+- **New API**: `DELETE /api/farms/[id]` — Soft-deletes farm (sets isActive=false)
+- Updated `GET /api/farms` to return ALL farms (active + inactive) for management view
+- Sidebar dropdown filters to active farms only
+- **Component**: `FarmLocationsManager` with:
+  - Add Farm dialog (name, location, address, phone)
+  - Inline rename (Pencil button → edit mode → Save/Cancel)
+  - Remove farm with confirmation dialog (data preserved)
+  - Shows removed farms in "Inactive" section
+
+### CEO Feature 3: Full Data Reset (Fresh Start)
+- **New API**: `POST /api/full-reset` — CEO-only, requires explicit `{confirm: true}`
+- Deletes ALL records in FK-safe order: amendments → treatments → vaccinations → health checks → expenses → sales → feed → mortality → egg collections → announcements → customers → flocks → farms
+- Deactivates all non-CEO staff, resets CEO password to default
+- **Component**: `FullDataReset` with 3-step confirmation:
+  1. Click "Start Full Reset"
+  2. Type "RESET" to confirm
+  3. Click "Confirm: Delete Everything"
+- Page reload after successful reset
+
+### AppShell Update
+- CEO tabs expanded from 4 to 5: Dashboard, Pending, Announcements, **Settings**, Access Control
+- New "Settings" tab renders `<CEOSettingsPanel />`
+
+### Files Changed
+| File | Change |
+|------|--------|
+| `prisma/schema.prisma` | Added FarmSettings model |
+| `src/app/api/farm-settings/route.ts` | NEW — Farm name CRUD |
+| `src/app/api/full-reset/route.ts` | NEW — Full data wipe |
+| `src/app/api/farms/[id]/route.ts` | NEW — PATCH rename, DELETE soft-delete |
+| `src/app/api/farms/route.ts` | GET returns all farms (active + inactive) |
+| `src/components/farm/CEOSettingsPanel.tsx` | NEW — Full settings panel |
+| `src/components/farm/AppShell.tsx` | Added Settings tab, filters inactive farms in sidebar |
+
+### API Test Results
+- POST /api/auth (ceo/ceo123): ✅
+- GET /api/farm-settings: ✅ Returns default name
+- GET /api/farms: ✅ Returns all farms with flocks
+- POST /api/farms: ✅ Creates new farm
+- PATCH /api/farms/[id]: ✅ Renames farm, re-activates soft-deleted
+- DELETE /api/farms/[id]: ✅ Soft-deletes farm
+- POST /api/full-reset (confirm=false): ✅ Rejects without confirmation

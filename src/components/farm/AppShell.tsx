@@ -21,6 +21,7 @@ import { AnnouncementPane, AnnouncementManager } from '@/components/farm/Announc
 import { SOPSection } from '@/components/farm/SOPSection'
 import { PendingAmendmentsPanel } from '@/components/farm/PendingAmendmentsPanel'
 import { PasswordResetPanel } from '@/components/farm/PasswordResetPanel'
+import { CEOSettingsPanel } from '@/components/farm/CEOSettingsPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useEffect, useState } from 'react'
@@ -85,7 +86,7 @@ function RoleSidebar() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Locations</SelectItem>
-            {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+            {farms.filter(f => f.isActive).map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -212,10 +213,11 @@ export function AppShell() {
 function CEOView() {
   return (
     <Tabs defaultValue="dashboard" className="w-full">
-      <TabsList className="grid grid-cols-4 w-full mb-4">
+      <TabsList className="grid grid-cols-5 w-full mb-4">
         <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
         <TabsTrigger value="pending">Pending</TabsTrigger>
         <TabsTrigger value="announcements">Announcements</TabsTrigger>
+        <TabsTrigger value="settings">Settings</TabsTrigger>
         <TabsTrigger value="access">Access Control</TabsTrigger>
       </TabsList>
       <TabsContent value="dashboard">
@@ -229,6 +231,9 @@ function CEOView() {
       </TabsContent>
       <TabsContent value="announcements">
         <AnnouncementManager />
+      </TabsContent>
+      <TabsContent value="settings">
+        <CEOSettingsPanel />
       </TabsContent>
       <TabsContent value="access">
         <PasswordResetPanel />

@@ -7,7 +7,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Auto-apply SQLite performance settings on first connection
+// WAL mode, busy_timeout are set at the connection level via DATABASE_URL params
+
 // ============ CORE ENTITIES ============
+
+model FarmSettings {
+  id        String   @id @default(cuid())
+  farmName  String   @default("WAFT MAM Farms and Trading Hub")
+  updatedAt DateTime @updatedAt
+}
 
 model Farm {
   id          String   @id @default(cuid())

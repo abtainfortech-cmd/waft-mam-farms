@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
-// GET all farms
+// GET all farms (includes inactive farms for CEO management)
 export async function GET() {
   try {
     const farms = await db.farm.findMany({
-      where: { isActive: true },
       include: {
         flocks: { where: { isActive: true } },
       },
