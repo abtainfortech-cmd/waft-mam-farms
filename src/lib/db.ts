@@ -22,6 +22,13 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
  * - busy_timeout = 5000 (retry for 5s on lock contention)
  * - synchronous = NORMAL (safe with WAL, better performance)
  *
+ * WAL mode is enabled via the DATABASE_URL in .env:
+ *   DATABASE_URL="file:./db/custom.db?connection_limit=1"
+ *
+ * Prisma automatically uses WAL for SQLite. The busy_timeout and
+ * synchronous settings are applied at the database level to handle
+ * concurrent access from multiple API requests.
+ *
  * All users connect through the same web app API routes, so the
  * database is inherently shared — changes made by any user are
  * immediately visible to all other users on their next data fetch.

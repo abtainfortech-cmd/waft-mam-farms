@@ -267,3 +267,22 @@ model Treatment {
   flock       BirdFlock @relation(fields: [flockId], references: [id])
   farm        Farm     @relation(fields: [farmId], references: [id])
 }
+
+// ============ AMENDMENTS ============
+
+model PendingAmendment {
+  id            String   @id @default(cuid())
+  recordType    String   // "DailyEggCollection", "BirdMortality", "FeedRecord", "EggSale", "BirdSale", "Expense", "Vaccination", "Treatment", "HealthCheck"
+  recordId      String   // ID of the original record being amended
+  field         String   // field name being changed
+  oldValue      String   // original value (JSON stringified for complex types)
+  newValue      String   // proposed new value
+  reason        String?  // reason for amendment
+  requestedBy   String   // username of who requested
+  requestedAt   DateTime @default(now())
+  status        String   @default("Pending") // "Pending", "Approved", "Rejected"
+  reviewedBy    String?  // CEO username
+  reviewedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

@@ -15,8 +15,9 @@ import { useAppStore } from '@/store/app'
 import { toast } from 'sonner'
 import { LiveSyncIndicator } from '@/components/farm/LiveSyncIndicator'
 import {
-  Stethoscope, Plus, Shield, AlertTriangle, Syringe, Activity, CheckCircle2, Clock, Heart
+  Stethoscope, Plus, Shield, AlertTriangle, Syringe, Activity, CheckCircle2, Clock, Heart, Pencil
 } from 'lucide-react'
+import { AmendmentRequestDialog } from '@/components/farm/AmendmentRequestDialog'
 
 interface Farm { id: string; name: string; flocks: any[] }
 interface Vaccination { id: string; vaccineName: string; scheduledDate: string; administeredDate: string | null; status: string; method: string; flock: { name: string; birdType: string; birdCount: number }; farm: { name: string } }
@@ -24,12 +25,14 @@ interface Treatment { id: string; date: string; diagnosis: string; medication: s
 interface HealthCheck { id: string; date: string; overallStatus: string; symptoms: string | null; bodyCondition: string | null; temperature: number | null; recommendations: string | null; flock: { name: string; birdType: string }; farm: { name: string } }
 
 export function VetDashboard() {
-  const { selectedFarmId, setFarm } = useAppStore()
+  const { selectedFarmId, setFarm, currentUser } = useAppStore()
   const [farms, setFarms] = useState<Farm[]>([])
   const [vaccinations, setVaccinations] = useState<Vaccination[]>([])
   const [treatments, setTreatments] = useState<Treatment[]>([])
   const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([])
   const [loading, setLoading] = useState(true)
+  const [amendmentOpen, setAmendmentOpen] = useState(false)
+  const [amendmentTarget, setAmendmentTarget] = useState<{ recordType: string; recordId: string; fields: any[] }>({ recordType: '', recordId: '', fields: [] })
 
   // Form Select state (Radix Select doesn't use native form elements)
   const [healthFarmId, setHealthFarmId] = useState(selectedFarmId || '')
@@ -167,6 +170,11 @@ export function VetDashboard() {
     })
     if (res.ok) { toast.success('Vaccination marked as completed'); fetchData() }
     else toast.error('Failed to update')
+  }
+
+  const openAmendmentDialog = (recordType: string, recordId: string, fields: any[]) => {
+    setAmendmentTarget({ recordType, recordId, fields })
+    setAmendmentOpen(true)
   }
 
   if (loading && farms.length === 0) return <div className="grid grid-cols-2 gap-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
@@ -585,6 +593,15 @@ export function VetDashboard() {
                         <p className="text-xs text-gray-500">{t.medication} · {t.dosage || ''} · {t.duration || ''}</p>
                       </div>
                       <Badge variant={t.status === 'Ongoing' ? 'secondary' : 'default'}>{t.status}</Badge>
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-gray-400 hover:text-amber-600" onClick={() => openAmendmentDialog('Treatment', t.id, [
+                        { key: 'diagnosis', label: 'Diagnosis', type: 'text' as const, value: t.diagnosis },
+                        { key: 'medication', label: 'Medication', type: 'text' as const, value: t.medication },
+                        { key: 'dosage', label: 'Dosage', type: 'text' as const, value: t.dosage || '' },
+                        { key: 'duration', label: 'Duration', type: 'text' as const, value: t.duration || '' },
+                        { key: 'status', label: 'Status', type: 'text' as const, value: t.status },
+                      ])}>
+                        <Pencil className="h-3 w-3" />
+                      </Button>
                     </div>
                   ))}
                   {treatments.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">No treatments recorded</p>}
@@ -619,6 +636,14 @@ export function VetDashboard() {
           </Card>
         </TabsContent>
       </Tabs>
+      {/* Amendment Dialog */}
+      <AmendmentRequestDialog
+        open={amendmentOpen}
+        onOpenChange={setAmendmentOpen}
+        recordType={amendmentTarget.recordType}
+        recordId={amendmentTarget.recordId}
+        fields={amendmentTarget.fields}
+      />
     </div>
   )
 }

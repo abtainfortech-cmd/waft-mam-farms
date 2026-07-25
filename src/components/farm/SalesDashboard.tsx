@@ -16,8 +16,9 @@ import { useAppStore } from '@/store/app'
 import { toast } from 'sonner'
 import { LiveSyncIndicator } from '@/components/farm/LiveSyncIndicator'
 import {
-  ShoppingBasket, Plus, Bird, DollarSign, Users, AlertCircle, CheckCircle, CreditCard, Package
+  ShoppingBasket, Plus, Bird, DollarSign, Users, AlertCircle, CheckCircle, CreditCard, Package, Pencil
 } from 'lucide-react'
+import { AmendmentRequestDialog } from '@/components/farm/AmendmentRequestDialog'
 
 interface Farm { id: string; name: string }
 interface Customer { id: string; name: string; phone: string; location: string; customerType: string }
@@ -27,12 +28,14 @@ interface BirdSale { id: string; date: string; quantity: number; pricePerBird: n
 function formatGHS(n: number) { return `GHS ${n.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }
 
 export function SalesDashboard() {
-  const { selectedFarmId, setFarm } = useAppStore()
+  const { selectedFarmId, setFarm, currentUser } = useAppStore()
   const [farms, setFarms] = useState<Farm[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [eggSales, setEggSales] = useState<EggSale[]>([])
   const [birdSales, setBirdSales] = useState<BirdSale[]>([])
   const [loading, setLoading] = useState(true)
+  const [amendmentOpen, setAmendmentOpen] = useState(false)
+  const [amendmentTarget, setAmendmentTarget] = useState<{ recordType: string; recordId: string; fields: any[] }>({ recordType: '', recordId: '', fields: [] })
 
   // Form Select state (Radix Select doesn't use native form elements)
   const [eggSaleCustomerId, setEggSaleCustomerId] = useState('')
@@ -135,6 +138,11 @@ export function SalesDashboard() {
       if (res.ok) { toast.success('Bird sale recorded!'); f.reset(); fetchData() }
       else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to record sale') }
     } catch (err) { console.error(err); toast.error('Failed to record sale') }
+  }
+
+  const openAmendmentDialog = (recordType: string, recordId: string, fields: any[]) => {
+    setAmendmentTarget({ recordType, recordId, fields })
+    setAmendmentOpen(true)
   }
 
   const addCustomer = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -301,6 +309,14 @@ export function SalesDashboard() {
                           {s.paymentStatus}
                         </Badge>
                       </div>
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-gray-400 hover:text-amber-600" onClick={() => openAmendmentDialog('EggSale', s.id, [
+                        { key: 'crateCount', label: 'Crates', type: 'number' as const, value: s.crateCount },
+                        { key: 'pricePerCrate', label: 'Price/Crate', type: 'number' as const, value: s.pricePerCrate },
+                        { key: 'paymentStatus', label: 'Payment Status', type: 'text' as const, value: s.paymentStatus },
+                        { key: 'amountPaid', label: 'Amount Paid', type: 'number' as const, value: s.amountPaid },
+                      ])}>
+                        <Pencil className="h-3 w-3" />
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -388,6 +404,14 @@ export function SalesDashboard() {
                           {s.paymentStatus}
                         </Badge>
                       </div>
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-gray-400 hover:text-amber-600" onClick={() => openAmendmentDialog('BirdSale', s.id, [
+                        { key: 'quantity', label: 'Quantity', type: 'number' as const, value: s.quantity },
+                        { key: 'pricePerBird', label: 'Price/Bird', type: 'number' as const, value: s.pricePerBird },
+                        { key: 'paymentStatus', label: 'Payment Status', type: 'text' as const, value: s.paymentStatus },
+                        { key: 'amountPaid', label: 'Amount Paid', type: 'number' as const, value: s.amountPaid },
+                      ])}>
+                        <Pencil className="h-3 w-3" />
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -499,6 +523,14 @@ export function SalesDashboard() {
           </Card>
         </TabsContent>
       </Tabs>
+      {/* Amendment Dialog */}
+      <AmendmentRequestDialog
+        open={amendmentOpen}
+        onOpenChange={setAmendmentOpen}
+        recordType={amendmentTarget.recordType}
+        recordId={amendmentTarget.recordId}
+        fields={amendmentTarget.fields}
+      />
     </div>
   )
 }

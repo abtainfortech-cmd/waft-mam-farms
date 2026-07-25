@@ -16,8 +16,9 @@ import { toast } from 'sonner'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, PieChart, Pie, Cell, Legend } from 'recharts'
 import { LiveSyncIndicator } from '@/components/farm/LiveSyncIndicator'
 import {
-  Calculator, Plus, DollarSign, TrendingUp, TrendingDown, AlertCircle, FileText, CreditCard, Receipt
+  Calculator, Plus, DollarSign, TrendingUp, TrendingDown, AlertCircle, FileText, CreditCard, Receipt, Pencil, Clock
 } from 'lucide-react'
+import { AmendmentRequestDialog } from '@/components/farm/AmendmentRequestDialog'
 
 const COLORS = ['#16a34a', '#ea580c', '#2563eb', '#9333ea', '#e11d48', '#ca8a04', '#06b6d4', '#84cc16']
 
@@ -27,13 +28,15 @@ interface Expense { id: string; date: string; category: string; description: str
 function formatGHS(n: number) { return `GHS ${n.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }
 
 export function AccountantDashboard() {
-  const { selectedFarmId, setFarm } = useAppStore()
+  const { selectedFarmId, setFarm, currentUser } = useAppStore()
   const [farms, setFarms] = useState<Farm[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [eggSales, setEggSales] = useState<any[]>([])
   const [birdSales, setBirdSales] = useState<any[]>([])
   const [dashboard, setDashboard] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [amendmentOpen, setAmendmentOpen] = useState(false)
+  const [amendmentTarget, setAmendmentTarget] = useState<{ recordType: string; recordId: string; fields: any[] }>({ recordType: '', recordId: '', fields: [] })
 
   // Form Select state (Radix Select doesn't use native form elements)
   const [expFarmId, setExpFarmId] = useState(selectedFarmId || '')
@@ -97,6 +100,35 @@ export function AccountantDashboard() {
 
   const today = new Date().toISOString().split('T')[0]
 
+  // 6-week payment alerts
+  const sixWeeksMs = 42 * 24 * 86400000
+  const now = Date.now()
+  const upcomingExpenses = expenses.filter(e => {
+    if (!e.dueDate || e.paymentStatus === 'Paid') return false
+    const dueDate = new Date(e.dueDate).getTime()
+    const daysUntilDue = (dueDate - now) / 86400000
+    return daysUntilDue <= 42
+  }).sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
+
+  const agingReceivables = [
+    ...eggSales.filter(s => s.paymentStatus !== 'Paid').map(s => ({ ...s, _type: 'EggSale' })),
+    ...birdSales.filter(s => s.paymentStatus !== 'Paid').map(s => ({ ...s, _type: 'BirdSale' })),
+  ].filter(s => (now - new Date(s.date).getTime()) / 86400000 >= 42)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+  const getDueDateUrgency = (dueDate: string) => {
+    const days = (new Date(dueDate).getTime() - now) / 86400000
+    if (days <= 0) return 'overdue'
+    if (days <= 7) return 'urgent'
+    if (days <= 28) return 'warning'
+    return 'normal'
+  }
+
+  const openAmendmentDialog = (recordType: string, recordId: string, fields: any[]) => {
+    setAmendmentTarget({ recordType, recordId, fields })
+    setAmendmentOpen(true)
+  }
+
   const submitExpense = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const f = e.currentTarget
@@ -124,7 +156,80 @@ export function AccountantDashboard() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      {/* Payment Alerts */}
+      {/* 6-Week Payment Alerts */}
+      {(upcomingExpenses.length > 0 || agingReceivables.length > 0) && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <Clock className="h-4 w-4 text-amber-600" />
+            6-Week Payment Outlook
+          </h3>
+          {upcomingExpenses.length > 0 && (
+            <Card className="border-orange-200 bg-orange-50">
+              <CardContent className="p-3">
+                <p className="text-xs font-medium text-orange-800 mb-2">Upcoming Expense Due Dates ({upcomingExpenses.length})</p>
+                <ScrollArea className="max-h-48">
+                  <div className="space-y-1">
+                    {upcomingExpenses.slice(0, 10).map(e => {
+                      const urgency = getDueDateUrgency(e.dueDate!)
+                      const daysUntil = Math.ceil((new Date(e.dueDate!).getTime() - now) / 86400000)
+                      return (
+                        <div key={e.id} className={`flex items-center gap-2 p-2 rounded-lg text-xs ${
+                          urgency === 'overdue' ? 'bg-red-100 border border-red-200' :
+                          urgency === 'urgent' ? 'bg-red-50 border border-red-100' :
+                          urgency === 'warning' ? 'bg-orange-50 border border-orange-100' :
+                          'bg-amber-50 border border-amber-100'
+                        }`}>
+                          <Receipt className={`h-3 w-3 shrink-0 ${
+                            urgency === 'overdue' ? 'text-red-600' :
+                            urgency === 'urgent' ? 'text-red-500' :
+                            'text-orange-500'
+                          }`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{e.description}</p>
+                            <p className="text-[10px] text-gray-500">{e.farm?.name} · {e.vendor || 'No vendor'}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="font-medium">{formatGHS(e.amount)}</p>
+                            <Badge variant={
+                              urgency === 'overdue' ? 'destructive' :
+                              urgency === 'urgent' ? 'destructive' : 'secondary'
+                            } className="text-[9px]">
+                              {urgency === 'overdue' ? 'OVERDUE' : `${Math.abs(daysUntil)}d ${daysUntil > 0 ? 'left' : 'ago'}`}
+                            </Badge>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          )}
+          {agingReceivables.length > 0 && (
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="p-3">
+                <p className="text-xs font-medium text-red-800 mb-2">Aging Receivables (6+ weeks) ({agingReceivables.length})</p>
+                <ScrollArea className="max-h-32">
+                  <div className="space-y-1">
+                    {agingReceivables.slice(0, 5).map(s => (
+                      <div key={s.id} className="flex items-center gap-2 p-2 bg-red-100 rounded-lg text-xs">
+                        <CreditCard className="h-3 w-3 text-red-600 shrink-0" />
+                        <div className="flex-1">
+                          <p className="font-medium">{s.customer?.name || 'Walk-in'} ({s._type})</p>
+                          <p className="text-[10px] text-gray-500">{new Date(s.date).toLocaleDateString('en-GB')}</p>
+                        </div>
+                        <p className="font-medium text-red-600">{formatGHS(s.totalAmount - s.amountPaid)} due</p>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Existing Payment Alerts */}
       {(unpaidExpTotal > 0 || unpaidReceivable > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {unpaidExpTotal > 0 && (
@@ -318,6 +423,14 @@ export function AccountantDashboard() {
                           {e.paymentStatus}
                         </Badge>
                       </div>
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-gray-400 hover:text-amber-600" onClick={() => openAmendmentDialog('Expense', e.id, [
+                        { key: 'amount', label: 'Amount', type: 'number' as const, value: e.amount },
+                        { key: 'paymentStatus', label: 'Payment Status', type: 'text' as const, value: e.paymentStatus },
+                        { key: 'description', label: 'Description', type: 'text' as const, value: e.description },
+                        { key: 'category', label: 'Category', type: 'text' as const, value: e.category },
+                      ])}>
+                        <Pencil className="h-3 w-3" />
+                      </Button>
                     </div>
                   ))}
                   {expenses.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">No expense records</p>}
@@ -425,6 +538,14 @@ export function AccountantDashboard() {
           </div>
         </TabsContent>
       </Tabs>
+      {/* Amendment Dialog */}
+      <AmendmentRequestDialog
+        open={amendmentOpen}
+        onOpenChange={setAmendmentOpen}
+        recordType={amendmentTarget.recordType}
+        recordId={amendmentTarget.recordId}
+        fields={amendmentTarget.fields}
+      />
     </div>
   )
 }

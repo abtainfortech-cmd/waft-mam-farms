@@ -32,10 +32,9 @@ export function LiveSyncIndicator({
   onData,
   compact = false,
 }: LiveSyncIndicatorProps) {
-  const [online, setOnline] = useState(true)
+  const [online, setOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
 
   useEffect(() => {
-    setOnline(navigator.onLine)
     const goOnline = () => setOnline(true)
     const goOffline = () => setOnline(false)
     window.addEventListener('online', goOnline)

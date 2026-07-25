@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAppStore, Role } from '@/store/app'
 import { toast } from 'sonner'
-import { KeyRound, UserCheck, RotateCcw, Plus, Shield, Loader2 } from 'lucide-react'
+import { KeyRound, UserCheck, RotateCcw, Plus, Shield, Loader2, UserMinus } from 'lucide-react'
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog'
@@ -41,7 +41,7 @@ export function PasswordResetPanel() {
   const [newName, setNewName] = useState('')
   const [newRole, setNewRole] = useState('')
   const [newUsername, setNewUsername] = useState('')
-  const [newPass, setNewPass] = useState('')
+  const [confirmDeactivate, setConfirmDeactivate] = useState<{ id: string; name: string } | null>(null)
 
   const fetchStaff = useCallback(async () => {
     try {
@@ -96,8 +96,8 @@ export function PasswordResetPanel() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     })
-    if (res.ok) { toast.success(`${name} has been deactivated`); fetchStaff() }
-    else toast.error('Failed to deactivate')
+    if (res.ok) { toast.success(`${name}'s access has been removed. Their recorded data is preserved.`); fetchStaff(); setConfirmDeactivate(null) }
+    else toast.error('Failed to remove access')
   }
 
   return (
@@ -222,8 +222,8 @@ export function PasswordResetPanel() {
                     </Dialog>
                     {s.isActive && s.role !== 'CEO' && (
                       <Button size="sm" variant="ghost" className="h-7 text-[10px] px-2 text-red-500 hover:text-red-700"
-                        onClick={() => handleDeactivate(s.id, s.name)}>
-                        Deactivate
+                        onClick={() => setConfirmDeactivate({ id: s.id, name: s.name })}>
+                        <UserMinus className="h-3 w-3 mr-1" />Remove Access
                       </Button>
                     )}
                   </div>
@@ -233,6 +233,39 @@ export function PasswordResetPanel() {
           </ScrollArea>
         </CardContent>
       </Card>
+      {/* Confirm Deactivation Dialog */}
+      {confirmDeactivate && (
+        <ConfirmDeactivateDialog
+          target={confirmDeactivate}
+          onConfirm={() => handleDeactivate(confirmDeactivate.id, confirmDeactivate.name)}
+          onCancel={() => setConfirmDeactivate(null)}
+        />
+      )}
     </div>
+    )
+}
+
+function ConfirmDeactivateDialog({ target, onConfirm, onCancel }: { target: { id: string; name: string }; onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <Dialog open={!!target} onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-base">Remove Staff Access</DialogTitle>
+          <DialogDescription className="text-sm">
+            Are you sure you want to remove <strong>{target.name}</strong>&apos;s access to the system?
+          </DialogDescription>
+        </DialogHeader>
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+          <Shield className="h-3 w-3 inline mr-1" />
+          This will remove the staff member&apos;s ability to log in. All their recorded data (egg collections, sales, feed records, etc.) will be preserved in the system.
+        </div>
+        <div className="flex gap-2 mt-3">
+          <Button variant="destructive" className="flex-1 h-9" onClick={onConfirm}>
+            <UserMinus className="h-3 w-3 mr-1" />Remove Access
+          </Button>
+          <Button variant="outline" className="h-9" onClick={onCancel}>Cancel</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

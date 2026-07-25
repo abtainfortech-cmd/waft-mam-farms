@@ -59,7 +59,7 @@ export function LoginScreen() {
             <Bird className="h-8 w-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">WAFT MAM Farms</h1>
-          <p className="text-sm text-gray-500 mt-1">Ghana Poultry & Trading Management System</p>
+          <p className="text-sm text-gray-500 mt-1">and Trading Hub — Management System</p>
         </div>
 
         {/* Login Card */}

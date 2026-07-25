@@ -19,6 +19,7 @@ import { AccountantDashboard } from '@/components/farm/AccountantDashboard'
 import { VetDashboard } from '@/components/farm/VetDashboard'
 import { AnnouncementPane, AnnouncementManager } from '@/components/farm/AnnouncementPane'
 import { SOPSection } from '@/components/farm/SOPSection'
+import { PendingAmendmentsPanel } from '@/components/farm/PendingAmendmentsPanel'
 import { PasswordResetPanel } from '@/components/farm/PasswordResetPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -54,7 +55,7 @@ function RoleSidebar() {
         </div>
         <div className="min-w-0">
           <h1 className="font-bold text-sm truncate">WAFT MAM Farms</h1>
-          <p className="text-[10px] text-gray-500">Ghana Poultry & Trading</p>
+          <p className="text-[10px] text-gray-500">and Trading Hub</p>
         </div>
       </div>
 
@@ -211,8 +212,9 @@ export function AppShell() {
 function CEOView() {
   return (
     <Tabs defaultValue="dashboard" className="w-full">
-      <TabsList className="grid grid-cols-3 w-full mb-4">
+      <TabsList className="grid grid-cols-4 w-full mb-4">
         <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+        <TabsTrigger value="pending">Pending</TabsTrigger>
         <TabsTrigger value="announcements">Announcements</TabsTrigger>
         <TabsTrigger value="access">Access Control</TabsTrigger>
       </TabsList>
@@ -221,6 +223,9 @@ function CEOView() {
         <div className="mt-4">
           <CEODashboard />
         </div>
+      </TabsContent>
+      <TabsContent value="pending">
+        <PendingAmendmentsPanel />
       </TabsContent>
       <TabsContent value="announcements">
         <AnnouncementManager />

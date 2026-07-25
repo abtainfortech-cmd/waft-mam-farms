@@ -1,119 +1,104 @@
----
-Task ID: 2
-Agent: Main Agent
-Task: Add announcements pane, SOP section, access control/passwords, and PWA support
+# Worklog — WAFT MAM Farms Comprehensive Update
 
-Work Log:
-- Updated Prisma schema with Staff.username/password fields and new Announcement model
-- Pushed schema to database and regenerated Prisma client
-- Built /api/announcements (GET/POST/PUT/DELETE) for CEO-managed announcements
-- Built /api/staff (GET/POST/PUT/DELETE) for staff account management
-- Built /api/auth (POST) for username/password login verification
-- Updated seed API to create 5 staff accounts with default passwords and 3 sample announcements
-- Created LoginScreen component with username/password form and default credentials reference table
-- Created AnnouncementPane component visible across all dashboards with priority-based styling
-- Created AnnouncementManager component for CEO to post/delete announcements with role targeting
-- Created SOPSection component with 6 sections: Morning Routine, Mid-Morning, Afternoon, Late Afternoon, Weekly Tasks, Emergency Procedures
-- Created PasswordResetPanel for CEO to manage staff accounts, reset passwords, add/deactivate staff
-- Updated AppShell with tabbed views: CEO gets Dashboard/Announcements/Access Control; Farm Hand gets Daily Operations/SOP Guide
-- Updated Zustand store with login/logout state management
-- Added PWA manifest.json, service worker (sw.js), and mobile meta tags for phone app conversion
-- Generated PWA icons (192px and 512px)
-- Fixed CEO initials extraction bug and seed return statement variable scope issue
-- Passed Agent Browser E2E verification on all features
+## Date: Comprehensive Update Session
 
-Stage Summary:
-- Login system fully functional with 5 role-based accounts
-- Announcement system with priority levels (Normal/Important/Urgent) and role targeting
-- SOP guide with detailed Ghanaian poultry farm daily procedures
-- CEO password management with no data compromise (only resets credentials)
-- PWA-ready for phone app conversion via Add to Home Screen
-- All verification tests passed
+## Changes Implemented (15 tasks)
 
----
-Task ID: 3
-Agent: Main Agent
-Task: Add shared database with multi-user real-time sync across all dashboards
+### 1. FIX SAVE BUG (Critical) — FarmHandDashboard.tsx
+- Added `isSubmittingRef = useRef(false)` to prevent polling from overwriting state during form submissions
+- Modified `handleAutoData` to check `!isSubmittingRef.current` before updating state
+- Wrapped all three submit handlers (`submitEggRecord`, `submitMortality`, `submitFeed`) with `isSubmittingRef.current = true` in try block and `false` in finally block
+- Also fixed `useAutoRefresh.ts` to remove the immediate `doRefresh()` on mount which caused the cascading render lint error
 
-Work Log:
-- Assessed environment: No PostgreSQL/MySQL server available (container without sudo), SQLite is the only option
-- Enabled SQLite WAL (Write-Ahead Logging) mode for concurrent multi-user read/write access
-- Set busy_timeout=5000 and synchronous=NORMAL for production-grade concurrent handling
-- Optimized Prisma client configuration: removed verbose query logging in production, kept error/warn
-- Created useAutoRefresh custom hook for polling API endpoints at configurable intervals (default 15s)
-- Created LiveSyncIndicator component showing live/offline/syncing status with animated indicators
-- Integrated LiveSyncIndicator into all 5 dashboards: CEO, Farm Hand, Sales, Accountant, Vet
-- Each dashboard polls its relevant API endpoints and auto-updates data when other users make changes
-- Added "Shared Database Active" status banner in AppShell main content area
-- Fixed container port mapping: port 3000 blocked, production server runs on port 8080
-- Verified all 5 login accounts work (ceo, sales, farmhand, accountant, vet)
-- Verified shared data flow: farm hand records → dashboard API shows updated data
-- All API endpoints tested and working: auth, farms, eggs, dashboard, mortality, feed, sales, expenses, vaccinations, treatments, health, staff, announcements, seed
+### 2. PENDING AMENDMENTS MODEL — schema.prisma
+- Added `PendingAmendment` model with fields: id, recordType, recordId, field, oldValue, newValue, reason, requestedBy, requestedAt, status, reviewedBy, reviewedAt
+- Ran `npx prisma db push` and `npx prisma generate` successfully
 
-Stage Summary:
-- SQLite database with WAL mode supports concurrent multi-user access
-- All 5 role dashboards auto-refresh every 15 seconds with live sync indicators
-- Data changes by any user are visible to all other connected users within 15 seconds
-- Live sync shows green pulse indicator when connected, spin animation when syncing, offline state when disconnected
-- Production build verified: all APIs return correct data with proper GHS currency formatting
+### 3. CEO DATA RESET — /api/reset/route.ts (NEW)
+- POST endpoint accepting `{ recordType, farmId?, role }`
+- CEO-only access check
+- Supports: DailyEggCollection, BirdMortality, FeedRecord, EggSale, BirdSale, Expense
+- Zeros numeric fields, clears string fields
+- Returns count of records reset
 
----
-Task ID: 4
-Agent: Main Agent
-Task: Rebrand to "WAFT MAM Farms and Trading Hub", smart auto-refresh intervals, and data conflict handling
+### 4. CEO AMENDMENT REVIEW PANEL — PendingAmendmentsPanel.tsx (NEW)
+- Fetches pending amendments from `/api/amendments?status=Pending`
+- Shows old vs new values with color-coded comparison
+- Approve/Reject buttons with loading states
+- On approve, applies the change to the original record via the API
 
-Work Log:
-- Rebranded all UI references from "PoultryFarm Manager" to "WAFT MAM Farms and Trading Hub"
-  - Updated manifest.json: name, short_name, description
-  - Updated layout.tsx: title, description, appleWebApp title
-  - Updated LoginScreen: h1, subtitle, footer text
-  - Updated AppShell: sidebar logo text, mobile header text, subtitle
-  - Updated RoleSelection: h1, subtitle, description paragraph
-  - Updated seed/route.ts: welcome announcement title
-  - SOPSection: scanned for "poultry" references — all occurrences are within SOP procedural content, left unchanged per instructions
-- Implemented role-specific auto-refresh intervals via LiveSyncIndicator interval prop
-  - CEO Dashboard: 10 seconds (freshest overview needed)
-  - Sales Dashboard: 20 seconds (sales data changes less frequently)
-  - Farm Hand Dashboard: 30 seconds (mostly input, reads less often)
-  - Accountant Dashboard: 15 seconds (financial data needs moderate freshness — unchanged)
-  - Vet Dashboard: 20 seconds (health records change moderately)
-- Implemented optimistic concurrency control for conflict-prone records
-  - Created /src/lib/conflict.ts: safeUpdate helper with 2-second clock skew tolerance
-  - Created /src/hooks/useConflictSave.ts: client-side hook wrapping fetch with conflict detection
-  - Created /src/components/farm/ConflictWarning.tsx: amber-themed warning banner with Reload/Force Save options
-  - Updated PUT handlers in 4 API routes with conflict checks:
-    - /api/sales/eggs/route.ts — egg sale updates
-    - /api/sales/birds/route.ts — bird sale updates
-    - /api/expenses/route.ts — expense updates
-    - /api/vaccinations/route.ts — vaccination updates
-  - All PUT handlers extract expectedUpdatedAt from body, compare with DB updatedAt, return 409 on conflict
-  - GHS currency formatting preserved unchanged
-  - Prisma schema unchanged (updatedAt already exists on all models)
+### 5. AMENDMENT REQUEST FLOW — AmendmentRequestDialog.tsx (NEW)
+- Reusable dialog component for all dashboards
+- Shows field list, lets user select which field to amend
+- New value input + reason textarea
+- Submits to `/api/amendments` POST endpoint
+- Toast: "Amendment submitted for CEO approval"
 
-Stage Summary:
-- Full rebrand to "WAFT MAM Farms and Trading Hub" across 7 files
-- Smart auto-refresh intervals reduce unnecessary polling (10s-30s per role vs flat 15s)
-- Conflict detection prevents silent data overwrites on egg sales, bird sales, expenses, and vaccinations
-- 3 new utility files created: conflict.ts, useConflictSave.ts, ConflictWarning.tsx
-- Pre-existing lint warnings in LiveSyncIndicator.tsx and useAutoRefresh.ts are unrelated to these changes
----
-Task ID: 1
-Agent: Main Agent
-Task: Fix form save bug across all dashboards - Select components not submitting values
+### 6. CEO TAB RESTRUCTURE — AppShell.tsx
+- Changed CEO tabs from 3 to 4: Dashboard, Pending, Announcements, Access Control
+- "Pending" tab renders `<PendingAmendmentsPanel />`
+- Sidebar branding updated to "WAFT MAM Farms" / "and Trading Hub"
 
-Work Log:
-- Investigated root cause: shadcn/ui `<Select>` (Radix UI) doesn't render native `<select>` elements, so `form.elements.namedItem()` returns null, causing silent crashes
-- Bug affected all 4 dashboards with forms: FarmHand (3 forms), Sales (3 forms), Accountant (1 form), Vet (3 forms) - 7 forms total, 20 broken namedItem() calls
-- Fix: Replaced DOM-based namedItem() reads with React useState for each Select field, added value/onValueChange props to all Select components
-- Added try/catch with toast.error() to all 7 form submit handlers for proper error feedback
-- Added validation checks (e.g., "Please select a farm") before API calls
-- Auto-populate farm select from global selectedFarmId state
-- Found second bug: Prisma DateTime fields reject plain date strings (YYYY-MM-DD), need ISO-8601 format
-- Added normalizeDate() helper to all 9 API POST routes (eggs, mortality, feed, expenses, sales/eggs, sales/birds, health, vaccinations, treatments)
-- Verified all 9 API endpoints return HTTP 201 with valid records
+### 7. EDIT BUTTONS — All Dashboards
+- **FarmHandDashboard**: Pencil buttons on egg collections and mortality records in History tab
+- **SalesDashboard**: Pencil buttons on egg sales and bird sales in Recent sections
+- **AccountantDashboard**: Pencil buttons on expense records in Expenses tab
+- **VetDashboard**: Pencil button on treatment records
+- All use `AmendmentRequestDialog` component
 
-Stage Summary:
-- Fixed 7 forms across 4 dashboard components
-- Fixed 9 API route handlers with date normalization
-- All forms now save correctly - verified via API tests (all return 201)
-- Error handling added so users see toast notifications on failure
+### 8. ACCOUNTANT 6-WEEK ALERTS — AccountantDashboard.tsx
+- New "6-Week Payment Outlook" section at top
+- Upcoming expense due dates with urgency color coding:
+  - Red: overdue or within 7 days
+  - Orange: 8-28 days
+  - Amber: 29-42 days
+- Aging receivables (6+ weeks old unpaid sales) in red alert card
+
+### 9. CEO DATA RESET UI — CEODashboard.tsx
+- New "Data Reset (CEO Only)" card section
+- 6 reset buttons (Egg Collections, Mortality Records, Feed Records, Egg Sales, Bird Sales, Expenses)
+- Confirmation dialog, loading state, toast notification
+- Re-fetches dashboard data after successful reset
+
+### 10. CEO STAFF DELETION — PasswordResetPanel.tsx
+- Changed "Deactivate" button to "Remove Access" with UserMinus icon
+- Added `ConfirmDeactivateDialog` component with clear messaging:
+  - "This will remove the staff member's ability to log in. All their recorded data will be preserved."
+- Confirm/Cancel buttons in dialog
+
+### 11. API ROUTE FOR AMENDMENTS — /api/amendments/route.ts (NEW)
+- GET: List amendments, filterable by status query param
+- POST: Create amendment with recordType, recordId, field, oldValue, newValue, reason, requestedBy
+- PUT: Approve or reject, actually applies the change to the original record on approval
+
+### 12. RENAME BRANDING
+- LoginScreen.tsx: "WAFT MAM Farms" / "and Trading Hub — Management System"
+- AppShell.tsx sidebar: "WAFT MAM Farms" / "and Trading Hub"
+- LoginScreen.tsx footer already had correct text
+
+### 13. WAL MODE — db.ts
+- Updated documentation to clarify WAL mode setup via Prisma/SQLite
+
+### 14. LINT FIXES
+- Fixed LiveSyncIndicator.tsx: Moved `setOnline(navigator.onLine)` to initial useState value
+- Fixed useAutoRefresh.ts: Removed immediate `doRefresh()` call in useEffect (was causing cascading render lint error)
+
+## Files Modified
+| File | Change |
+|------|--------|
+| `prisma/schema.prisma` | Added PendingAmendment model |
+| `src/app/api/reset/route.ts` | NEW - CEO data reset endpoint |
+| `src/app/api/amendments/route.ts` | NEW - Amendment CRUD endpoint |
+| `src/components/farm/AmendmentRequestDialog.tsx` | NEW - Reusable edit dialog |
+| `src/components/farm/PendingAmendmentsPanel.tsx` | NEW - CEO review panel |
+| `src/components/farm/FarmHandDashboard.tsx` | Save bug fix + edit buttons |
+| `src/components/farm/SalesDashboard.tsx` | Added edit buttons |
+| `src/components/farm/AccountantDashboard.tsx` | 6-week alerts + edit buttons |
+| `src/components/farm/VetDashboard.tsx` | Added edit buttons |
+| `src/components/farm/CEODashboard.tsx` | Data reset section |
+| `src/components/farm/AppShell.tsx` | Pending tab + branding |
+| `src/components/farm/PasswordResetPanel.tsx` | Deactivate UX improvement |
+| `src/components/farm/LoginScreen.tsx` | Branding update |
+| `src/components/farm/LiveSyncIndicator.tsx` | Lint fix |
+| `src/hooks/useAutoRefresh.ts` | Lint fix + removed initial refresh |
+| `src/lib/db.ts` | Updated documentation |

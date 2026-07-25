@@ -9,13 +9,14 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAppStore } from '@/store/app'
+import { toast } from 'sonner'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, PieChart, Pie, Cell, Legend,
 } from 'recharts'
 import { LiveSyncIndicator } from '@/components/farm/LiveSyncIndicator'
 import {
   Building2, Egg, TrendingUp, TrendingDown, AlertTriangle, DollarSign, Bird, Activity, ChevronRight,
-  RefreshCw, MapPin, AlertCircle, CheckCircle2, Clock, Shield
+  RefreshCw, MapPin, AlertCircle, CheckCircle2, Clock, Shield, Trash2, Loader2
 } from 'lucide-react'
 
 const COLORS = ['#16a34a', '#ea580c', '#2563eb', '#9333ea', '#e11d48', '#ca8a04', '#06b6d4', '#84cc16']
@@ -43,9 +44,37 @@ function formatGHS(amount: number) {
 }
 
 export function CEODashboard() {
-  const { selectedFarmId } = useAppStore()
+  const { selectedFarmId, currentUser } = useAppStore()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [resetLoading, setResetLoading] = useState<string | null>(null)
+
+  // Data Reset for CEO
+  const handleDataReset = async (recordType: string) => {
+    if (!confirm(`Are you sure you want to reset all ${recordType} records? This will set numeric fields to 0 and clear string fields. This action cannot be undone.`)) {
+      return
+    }
+    setResetLoading(recordType)
+    try {
+      const res = await fetch('/api/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recordType, farmId: selectedFarmId || undefined, role: currentUser?.role || 'CEO' }),
+      })
+      if (res.ok) {
+        const result = await res.json()
+        toast.success(`Reset ${result.count} ${recordType} records (${result.farmId})`)
+        fetchDashboard()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Failed to reset data')
+      }
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setResetLoading(null)
+    }
+  }
 
   const fetchDashboard = useCallback(async () => {
     setLoading(true)
@@ -63,6 +92,32 @@ export function CEODashboard() {
   }, [])
 
   useEffect(() => { fetchDashboard() }, [fetchDashboard])
+
+  // Data Reset for CEO
+  const handleDataReset = async (recordType: string) => {
+    if (!confirm(`Are you sure you want to reset all ${recordType} records? This will set numeric fields to 0 and clear string fields. This action cannot be undone.`)) {
+      return
+    }
+    setResetLoading(recordType)
+    try {
+      const res = await fetch('/api/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recordType, farmId: selectedFarmId || undefined, role: currentUser?.role || 'CEO' }),
+      })
+      if (res.ok) {
+        const result = await res.json()
+        toast.success(`Reset ${result.count} ${recordType} records (${result.farmId})`)
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Failed to reset data')
+      }
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setResetLoading(null)
+    }
+  }
 
   // Auto-refresh: CEO dashboard polls every 10s for freshest overview
   const handleAutoData = useCallback((data: any) => {
@@ -395,6 +450,46 @@ export function CEODashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* CEO Data Reset Section */}
+      <Card className="border-red-200">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2 text-red-700">
+            <Trash2 className="h-4 w-4" />
+            Data Reset (CEO Only)
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Reset record data by type. Numeric fields are set to 0 and string fields are cleared. All recorded data is preserved in the database but values are zeroed out.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            {['DailyEggCollection', 'BirdMortality', 'FeedRecord', 'EggSale', 'BirdSale', 'Expense'].map(type => {
+              const labels: Record<string, string> = {
+                DailyEggCollection: 'Egg Collections',
+                BirdMortality: 'Mortality Records',
+                FeedRecord: 'Feed Records',
+                EggSale: 'Egg Sales',
+                BirdSale: 'Bird Sales',
+                Expense: 'Expenses',
+              }
+              return (
+                <Button
+                  key={type}
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 gap-1"
+                  disabled={resetLoading === type}
+                  onClick={() => handleDataReset(type)}
+                >
+                  {resetLoading === type ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                  Reset {labels[type]}
+                </Button>
+              )
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Live Sync Bar */}
       <div className="flex items-center justify-between">

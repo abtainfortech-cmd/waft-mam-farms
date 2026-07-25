@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -15,8 +15,9 @@ import { useAppStore } from '@/store/app'
 import { toast } from 'sonner'
 import { LiveSyncIndicator } from '@/components/farm/LiveSyncIndicator'
 import {
-  Egg, Plus, Trash2, Bird, Droplets, UtensilsCrossed, AlertTriangle, Calendar, BarChart3, CheckCircle
+  Egg, Plus, Trash2, Bird, Droplets, UtensilsCrossed, AlertTriangle, Calendar, BarChart3, CheckCircle, Pencil
 } from 'lucide-react'
+import { AmendmentRequestDialog } from '@/components/farm/AmendmentRequestDialog'
 
 interface Farm { id: string; name: string; location: string; flocks: any[] }
 interface EggRecord { id: string; date: string; crateCount: number; eggsPerCrate: number; brokenCount: number; soiledCount: number; farm: { name: string } }
@@ -24,12 +25,15 @@ interface MortRecord { id: string; date: string; count: number; cause: string; f
 interface FeedRecord { id: string; date: string; feedType: string; bagsUsed: number; bagWeightKg: number; costPerBag: number; farm: { name: string } }
 
 export function FarmHandDashboard() {
-  const { selectedFarmId, setFarm } = useAppStore()
+  const { selectedFarmId, setFarm, currentUser } = useAppStore()
   const [farms, setFarms] = useState<Farm[]>([])
   const [eggRecords, setEggRecords] = useState<EggRecord[]>([])
   const [mortRecords, setMortRecords] = useState<MortRecord[]>([])
   const [feedRecords, setFeedRecords] = useState<FeedRecord[]>([])
   const [loading, setLoading] = useState(true)
+  const isSubmittingRef = useRef(false)
+  const [amendmentOpen, setAmendmentOpen] = useState(false)
+  const [amendmentTarget, setAmendmentTarget] = useState<{ recordType: string; recordId: string; fields: any[] }>({ recordType: '', recordId: '', fields: [] })
 
   // Form Select state (Radix Select doesn't use native form elements)
   const [eggFarmId, setEggFarmId] = useState(selectedFarmId || '')
@@ -68,8 +72,9 @@ export function FarmHandDashboard() {
   useEffect(() => { fetchData() }, [fetchData])
 
   // Auto-refresh: Farm hand sees changes from other staff in real-time
+  // Skip if form is being submitted to prevent race conditions
   const handleAutoData = useCallback((results: any[]) => {
-    if (results && results.length >= 4) {
+    if (results && results.length >= 4 && !isSubmittingRef.current) {
       setFarms(results[0] || [])
       setEggRecords(results[1] || [])
       setMortRecords(results[2] || [])
@@ -87,8 +92,14 @@ export function FarmHandDashboard() {
   const weekEggs = eggRecords.filter(e => new Date(e.date).toISOString().split('T')[0] >= weekAgo)
   const weekCrates = weekEggs.reduce((s, e) => s + e.crateCount, 0)
 
+  const openAmendmentDialog = (recordType: string, recordId: string, fields: any[]) => {
+    setAmendmentTarget({ recordType, recordId, fields })
+    setAmendmentOpen(true)
+  }
+
   const submitEggRecord = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    isSubmittingRef.current = true
     const form = e.currentTarget
     try {
       const data = {
@@ -105,10 +116,12 @@ export function FarmHandDashboard() {
       if (res.ok) { toast.success('Egg collection recorded!'); form.reset(); fetchData() }
       else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to record') }
     } catch (err) { console.error(err); toast.error('Failed to record egg collection') }
+    finally { isSubmittingRef.current = false }
   }
 
   const submitMortality = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    isSubmittingRef.current = true
     const form = e.currentTarget
     try {
       const data = {
@@ -125,10 +138,12 @@ export function FarmHandDashboard() {
       if (res.ok) { toast.success('Mortality recorded'); form.reset(); fetchData() }
       else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to record') }
     } catch (err) { console.error(err); toast.error('Failed to record mortality') }
+    finally { isSubmittingRef.current = false }
   }
 
   const submitFeed = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    isSubmittingRef.current = true
     const form = e.currentTarget
     try {
       const data = {
@@ -146,6 +161,7 @@ export function FarmHandDashboard() {
       if (res.ok) { toast.success('Feed record saved'); form.reset(); fetchData() }
       else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to save feed record') }
     } catch (err) { console.error(err); toast.error('Failed to save feed record') }
+    finally { isSubmittingRef.current = false }
   }
 
   if (loading && farms.length === 0) return <div className="grid grid-cols-2 gap-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
@@ -399,6 +415,14 @@ export function FarmHandDashboard() {
                           <p className="font-medium">{r.crateCount} crates</p>
                           <p className="text-xs text-gray-500">{r.crateCount * r.eggsPerCrate} eggs</p>
                         </div>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-gray-400 hover:text-amber-600" onClick={() => openAmendmentDialog('DailyEggCollection', r.id, [
+                          { key: 'crateCount', label: 'Crates', type: 'number' as const, value: r.crateCount },
+                          { key: 'eggsPerCrate', label: 'Eggs/Crate', type: 'number' as const, value: r.eggsPerCrate },
+                          { key: 'brokenCount', label: 'Broken', type: 'number' as const, value: r.brokenCount },
+                          { key: 'soiledCount', label: 'Soiled', type: 'number' as const, value: r.soiledCount },
+                        ])}>
+                          <Pencil className="h-3 w-3" />
+                        </Button>
                       </div>
                     ))}
                     {eggRecords.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">No records yet</p>}
@@ -422,6 +446,12 @@ export function FarmHandDashboard() {
                           <p className="text-xs text-gray-500">{new Date(r.date).toLocaleDateString('en-GB')}{r.cause ? ` · ${r.cause}` : ''}</p>
                         </div>
                         <Badge variant="destructive">{r.count} lost</Badge>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-gray-400 hover:text-amber-600" onClick={() => openAmendmentDialog('BirdMortality', r.id, [
+                          { key: 'count', label: 'Count', type: 'number' as const, value: r.count },
+                          { key: 'cause', label: 'Cause', type: 'text' as const, value: r.cause || '' },
+                        ])}>
+                          <Pencil className="h-3 w-3" />
+                        </Button>
                       </div>
                     ))}
                     {mortRecords.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">No mortality records yet</p>}
@@ -432,6 +462,14 @@ export function FarmHandDashboard() {
           </div>
         </TabsContent>
       </Tabs>
+      {/* Amendment Dialog */}
+      <AmendmentRequestDialog
+        open={amendmentOpen}
+        onOpenChange={setAmendmentOpen}
+        recordType={amendmentTarget.recordType}
+        recordId={amendmentTarget.recordId}
+        fields={amendmentTarget.fields}
+      />
     </div>
   )
 }

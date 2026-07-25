@@ -96,9 +96,6 @@ export function useAutoRefresh(options: UseAutoRefreshOptions) {
 
     mountedRef.current = true
 
-    // Initial fetch
-    doRefresh()
-
     // Set up polling
     timerRef.current = setInterval(doRefresh, interval)
 
