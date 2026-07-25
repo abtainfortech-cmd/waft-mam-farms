@@ -240,7 +240,7 @@ export function VetDashboard() {
 
       <LiveSyncIndicator
         endpoints={['/api/farms', `/api/vaccinations${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/treatments${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/health${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`]}
-        interval={15000}
+        interval={20000}
         onData={handleAutoData}
         compact
       />

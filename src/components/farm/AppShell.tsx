@@ -53,8 +53,8 @@ function RoleSidebar() {
           <Bird className="h-6 w-6 text-white" />
         </div>
         <div className="min-w-0">
-          <h1 className="font-bold text-sm truncate">PoultryFarm Manager</h1>
-          <p className="text-[10px] text-gray-500">Ghana Poultry System</p>
+          <h1 className="font-bold text-sm truncate">WAFT MAM Farms</h1>
+          <p className="text-[10px] text-gray-500">Ghana Poultry & Trading</p>
         </div>
       </div>
 
@@ -184,7 +184,7 @@ export function AppShell() {
             <RoleSidebar />
             <div className="flex items-center gap-2">
               <Bird className="h-5 w-5 text-green-600" />
-              <span className="font-semibold text-sm">PoultryFarm</span>
+              <span className="font-semibold text-sm">WAFT MAM</span>
             </div>
             <div className="ml-auto flex items-center gap-1">
               <div className={`w-6 h-6 rounded flex items-center justify-center ${roleConfig[currentRole].color} bg-gray-100`}>

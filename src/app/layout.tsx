@@ -14,13 +14,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PoultryFarm Manager - Ghana Poultry Management System",
-  description: "Central information hub for poultry farm operations. Daily record keeping, reports, and critical reminders for multi-location poultry farms in Ghana.",
+  title: "WAFT MAM Farms and Trading Hub",
+  description: "Ghana Poultry & Trading Management System — central operations hub for multi-location farms. Daily record keeping, reports, and critical reminders.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "PoultryFarm Manager",
+    title: "WAFT MAM Farms",
   },
   icons: {
     icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",

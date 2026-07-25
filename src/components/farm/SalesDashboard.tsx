@@ -187,7 +187,7 @@ export function SalesDashboard() {
 
       <LiveSyncIndicator
         endpoints={['/api/farms', '/api/customers', `/api/sales/eggs${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/sales/birds${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`]}
-        interval={15000}
+        interval={20000}
         onData={handleAutoData}
         compact
       />

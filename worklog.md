@@ -56,3 +56,43 @@ Stage Summary:
 - Data changes by any user are visible to all other connected users within 15 seconds
 - Live sync shows green pulse indicator when connected, spin animation when syncing, offline state when disconnected
 - Production build verified: all APIs return correct data with proper GHS currency formatting
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Rebrand to "WAFT MAM Farms and Trading Hub", smart auto-refresh intervals, and data conflict handling
+
+Work Log:
+- Rebranded all UI references from "PoultryFarm Manager" to "WAFT MAM Farms and Trading Hub"
+  - Updated manifest.json: name, short_name, description
+  - Updated layout.tsx: title, description, appleWebApp title
+  - Updated LoginScreen: h1, subtitle, footer text
+  - Updated AppShell: sidebar logo text, mobile header text, subtitle
+  - Updated RoleSelection: h1, subtitle, description paragraph
+  - Updated seed/route.ts: welcome announcement title
+  - SOPSection: scanned for "poultry" references — all occurrences are within SOP procedural content, left unchanged per instructions
+- Implemented role-specific auto-refresh intervals via LiveSyncIndicator interval prop
+  - CEO Dashboard: 10 seconds (freshest overview needed)
+  - Sales Dashboard: 20 seconds (sales data changes less frequently)
+  - Farm Hand Dashboard: 30 seconds (mostly input, reads less often)
+  - Accountant Dashboard: 15 seconds (financial data needs moderate freshness — unchanged)
+  - Vet Dashboard: 20 seconds (health records change moderately)
+- Implemented optimistic concurrency control for conflict-prone records
+  - Created /src/lib/conflict.ts: safeUpdate helper with 2-second clock skew tolerance
+  - Created /src/hooks/useConflictSave.ts: client-side hook wrapping fetch with conflict detection
+  - Created /src/components/farm/ConflictWarning.tsx: amber-themed warning banner with Reload/Force Save options
+  - Updated PUT handlers in 4 API routes with conflict checks:
+    - /api/sales/eggs/route.ts — egg sale updates
+    - /api/sales/birds/route.ts — bird sale updates
+    - /api/expenses/route.ts — expense updates
+    - /api/vaccinations/route.ts — vaccination updates
+  - All PUT handlers extract expectedUpdatedAt from body, compare with DB updatedAt, return 409 on conflict
+  - GHS currency formatting preserved unchanged
+  - Prisma schema unchanged (updatedAt already exists on all models)
+
+Stage Summary:
+- Full rebrand to "WAFT MAM Farms and Trading Hub" across 7 files
+- Smart auto-refresh intervals reduce unnecessary polling (10s-30s per role vs flat 15s)
+- Conflict detection prevents silent data overwrites on egg sales, bird sales, expenses, and vaccinations
+- 3 new utility files created: conflict.ts, useConflictSave.ts, ConflictWarning.tsx
+- Pre-existing lint warnings in LiveSyncIndicator.tsx and useAutoRefresh.ts are unrelated to these changes

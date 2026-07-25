@@ -64,7 +64,7 @@ export function CEODashboard() {
 
   useEffect(() => { fetchDashboard() }, [fetchDashboard])
 
-  // Auto-refresh: CEO dashboard polls every 15s for shared data changes
+  // Auto-refresh: CEO dashboard polls every 10s for freshest overview
   const handleAutoData = useCallback((data: any) => {
     if (data) setData(data)
   }, [])
@@ -400,7 +400,7 @@ export function CEODashboard() {
       <div className="flex items-center justify-between">
         <LiveSyncIndicator
           endpoints={['/api/dashboard']}
-          interval={15000}
+          interval={10000}
           onData={handleAutoData}
         />
         <Button variant="outline" size="sm" onClick={fetchDashboard}>

@@ -41,7 +41,26 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, ...data } = body
+    const { id, expectedUpdatedAt, ...data } = body
+
+    // Conflict check
+    const current = await db.eggSale.findUnique({ where: { id } })
+    if (!current) return NextResponse.json({ error: 'Sale not found' }, { status: 404 })
+
+    if (expectedUpdatedAt) {
+      const currentMs = new Date(current.updatedAt).getTime()
+      const expectedMs = new Date(expectedUpdatedAt).getTime()
+      if (Math.abs(currentMs - expectedMs) > 2000) {
+        return NextResponse.json({
+          error: 'CONFLICT',
+          message: 'This sale record was modified by another user. Please review before saving.',
+          modifiedBy: current.recordedBy || 'another staff member',
+          modifiedAt: current.updatedAt,
+          currentData: current,
+        }, { status: 409 })
+      }
+    }
+
     const sale = await db.eggSale.update({ where: { id }, data })
     return NextResponse.json(sale)
   } catch (error) {

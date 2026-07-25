@@ -301,7 +301,7 @@ export async function POST() {
     if (existingAnnouncements === 0) {
       await db.announcement.create({
         data: {
-          title: 'Welcome to PoultryFarm Manager',
+          title: 'Welcome to WAFT MAM Farms',
           message: 'This is your central farm management system. All daily records, reports and reminders can be found here. Contact the CEO if you need help.',
           priority: 'Normal',
           targetRoles: 'ALL',

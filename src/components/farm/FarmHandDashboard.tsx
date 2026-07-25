@@ -184,7 +184,7 @@ export function FarmHandDashboard() {
 
       <LiveSyncIndicator
         endpoints={['/api/farms', `/api/eggs${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/mortality${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/feed${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`]}
-        interval={15000}
+        interval={30000}
         onData={handleAutoData}
         compact
       />

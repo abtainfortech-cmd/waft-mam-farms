@@ -70,14 +70,14 @@ export function RoleSelection() {
               <Bird className="h-8 w-8 text-white" />
             </div>
             <div className="text-left">
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">PoultryFarm Manager</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">WAFT MAM Farms</h1>
               <p className="text-sm text-gray-500 flex items-center gap-1">
-                <MapPin className="h-3 w-3" /> Ghana Poultry Management System
+                <MapPin className="h-3 w-3" /> Ghana Poultry & Trading Management System
               </p>
             </div>
           </div>
           <p className="text-gray-600 mt-2 text-sm md:text-base max-w-xl mx-auto">
-            Central information hub for your poultry farm operations. Select your role to get started with daily record keeping, reports, and critical reminders.
+            Central information hub for your farm operations and trading. Select your role to get started with daily record keeping, reports, and critical reminders.
           </p>
         </motion.div>
 

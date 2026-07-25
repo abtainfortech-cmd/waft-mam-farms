@@ -58,8 +58,8 @@ export function LoginScreen() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-green-600 rounded-2xl shadow-lg mb-4">
             <Bird className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">PoultryFarm Manager</h1>
-          <p className="text-sm text-gray-500 mt-1">Ghana Poultry Management System</p>
+          <h1 className="text-2xl font-bold text-gray-900">WAFT MAM Farms</h1>
+          <p className="text-sm text-gray-500 mt-1">Ghana Poultry & Trading Management System</p>
         </div>
 
         {/* Login Card */}
@@ -145,7 +145,7 @@ export function LoginScreen() {
         </Card>
 
         <p className="text-center text-[10px] text-gray-400 mt-4">
-          Multi-location Poultry Farm Management System
+          WAFT MAM Farms and Trading Hub
         </p>
       </motion.div>
     </div>

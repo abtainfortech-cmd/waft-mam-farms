@@ -1,7 +1,7 @@
 {
-  "name": "PoultryFarm Manager",
-  "short_name": "PoultryFarm",
-  "description": "Central poultry farm management system for Ghanaian farmers",
+  "name": "WAFT MAM Farms and Trading Hub",
+  "short_name": "WAFT MAM Farms",
+  "description": "Ghana Poultry & Trading Management System — central operations hub for multi-location farms",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f0fdf4",
