@@ -36,7 +36,7 @@ const roleConfig: Record<Role, { label: string; icon: React.ReactNode; color: st
 
 function RoleSidebar() {
   const { currentRole, currentUser, logout, selectedFarmId, setFarm, sidebarOpen, setSidebarOpen, toggleSidebar } = useAppStore()
-  const [farms, setFarms] = useState<{ id: string; name: string }[]>([])
+  const [farms, setFarms] = useState<{ id: string; name: string; isActive: boolean }[]>([])
 
   useEffect(() => {
     let cancelled = false
