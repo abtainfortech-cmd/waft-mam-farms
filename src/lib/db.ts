@@ -1,7 +1,32 @@
 import { PrismaClient } from '@prisma/client'
+import 'better-sqlite3'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
+  dbInitialized: boolean
+}
+
+// Auto-configure SQLite for production use
+async function initDb(prisma: PrismaClient) {
+  if (globalForPrisma.dbInitialized) return
+  try {
+    // Run raw SQL via Prisma's internal engine connection
+    const url = process.env.DATABASE_URL || 'file:./db/custom.db'
+    const dbPath = url.replace('file:', '').split('?')[0]
+    const Database = require('better-sqlite3')
+    const sqlite = new Database(dbPath)
+    sqlite.pragma('journal_mode = WAL')
+    sqlite.pragma('busy_timeout = 5000')
+    sqlite.pragma('synchronous = NORMAL')
+    sqlite.pragma('cache_size = -8000') // 8MB cache
+    sqlite.pragma('foreign_keys = ON')
+    const mode = sqlite.pragma('journal_mode')
+    console.log(`[DB] SQLite configured: WAL=${mode[0]?.journal_mode || mode}, busy_timeout=5000`)
+    sqlite.close()
+    globalForPrisma.dbInitialized = true
+  } catch (e) {
+    console.warn('[DB] SQLite pragma config failed (non-critical):', e)
+  }
 }
 
 export const db =
@@ -9,6 +34,9 @@ export const db =
   new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   })
+
+// Initialize DB settings on first import
+initDb(db).catch(() => {})
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
 
