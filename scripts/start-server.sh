@@ -1,28 +1,53 @@
 #!/bin/bash
-# WAFT MAM Farms - Server startup script
-# Usage: bash /home/z/my-project/scripts/start-server.sh
+# Robust server startup for WAFT MAM Farms
+# Uses setsid to fully detach from terminal
+# Writes PID to file for management
 
-cd /home/z/my-project
+PROJECT="/home/z/my-project"
+LOG="/tmp/waft-server.log"
+PIDFILE="/tmp/waft-server.pid"
+PORT=3000
 
 # Kill any existing server
-pkill -f "standalone/server" 2>/dev/null
-sleep 1
-
-# Ensure standalone build exists
-if [ ! -f ".next/standalone/server.js" ]; then
-  echo "Building production app..."
-  npm run build
-  cp -r .next/static .next/standalone/.next/
-  cp -r public .next/standalone/ 2>/dev/null
+if [ -f "$PIDFILE" ]; then
+  OLD_PID=$(cat "$PIDFILE" 2>/dev/null)
+  if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+    echo "Stopping old server (PID $OLD_PID)..."
+    kill -9 "$OLD_PID" 2>/dev/null
+    sleep 1
+  fi
+  rm -f "$PIDFILE"
 fi
 
-# Start with bun (persistent runtime)
-PORT=3000 NODE_ENV=production setsid nohup bun .next/standalone/server.js </dev/null > /tmp/waft-bun.log 2>&1 & disown
+# Also kill anything on our port
+fuser -k $PORT/tcp 2>/dev/null
+sleep 1
 
-# Wait and verify
-sleep 3
-if curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 | grep -q "200"; then
-  echo "✅ WAFT MAM Farms server running on port 3000"
+cd "$PROJECT"
+
+# Start server fully detached using setsid
+# Redirect all output to log file
+echo "[$(date)] Starting WAFT MAM Farms server on port $PORT..." > "$LOG"
+
+setsid npx next dev -p $PORT >> "$LOG" 2>&1 &
+SERVER_PID=$!
+echo "$SERVER_PID" > "$PIDFILE"
+echo "Started with PID $SERVER_PID"
+
+# Wait for server to be ready (up to 30s)
+READY=0
+for i in $(seq 1 30); do
+  if curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT 2>/dev/null | grep -qE "200|302"; then
+    READY=1
+    echo "[$(date)] Server ready after ${i}s (PID $SERVER_PID)" >> "$LOG"
+    break
+  fi
+  sleep 1
+done
+
+if [ $READY -eq 0 ]; then
+  echo "[$(date)] WARNING: Server did not become ready within 30s" >> "$LOG"
+  echo "FAILED"
 else
-  echo "❌ Server failed to start. Check /tmp/waft-bun.log"
+  echo "OK"
 fi
