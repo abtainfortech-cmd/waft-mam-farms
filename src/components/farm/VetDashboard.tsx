@@ -13,6 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAppStore } from '@/store/app'
 import { toast } from 'sonner'
+import { LiveSyncIndicator } from '@/components/farm/LiveSyncIndicator'
 import {
   Stethoscope, Plus, Shield, AlertTriangle, Syringe, Activity, CheckCircle2, Clock, Heart
 } from 'lucide-react'
@@ -48,6 +49,16 @@ export function VetDashboard() {
   }, [selectedFarmId])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // Auto-refresh: Vet sees mortality and flock data from farm hand in real-time
+  const handleAutoData = useCallback((results: any[]) => {
+    if (results && results.length >= 4) {
+      setFarms(results[0] || [])
+      setVaccinations(results[1] || [])
+      setTreatments(results[2] || [])
+      setHealthChecks(results[3] || [])
+    }
+  }, [])
 
   const now = new Date()
   const overdue = vaccinations.filter(v => new Date(v.scheduledDate) <= now && v.status !== 'Completed')
@@ -226,6 +237,13 @@ export function VetDashboard() {
           </SelectContent>
         </Select>
       </div>
+
+      <LiveSyncIndicator
+        endpoints={['/api/farms', `/api/vaccinations${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/treatments${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/health${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`]}
+        interval={15000}
+        onData={handleAutoData}
+        compact
+      />
 
       <Tabs defaultValue="schedule" className="w-full">
         <TabsList className="grid grid-cols-4 w-full">

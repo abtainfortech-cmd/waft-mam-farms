@@ -13,6 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAppStore } from '@/store/app'
 import { toast } from 'sonner'
+import { LiveSyncIndicator } from '@/components/farm/LiveSyncIndicator'
 import {
   Egg, Plus, Trash2, Bird, Droplets, UtensilsCrossed, AlertTriangle, Calendar, BarChart3, CheckCircle
 } from 'lucide-react'
@@ -48,6 +49,16 @@ export function FarmHandDashboard() {
   }, [selectedFarmId])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // Auto-refresh: Farm hand sees changes from other staff in real-time
+  const handleAutoData = useCallback((results: any[]) => {
+    if (results && results.length >= 4) {
+      setFarms(results[0] || [])
+      setEggRecords(results[1] || [])
+      setMortRecords(results[2] || [])
+      setFeedRecords(results[3] || [])
+    }
+  }, [])
 
   // Quick stats
   const today = new Date().toISOString().split('T')[0]
@@ -170,6 +181,13 @@ export function FarmHandDashboard() {
           </SelectContent>
         </Select>
       </div>
+
+      <LiveSyncIndicator
+        endpoints={['/api/farms', `/api/eggs${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/mortality${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/feed${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`]}
+        interval={15000}
+        onData={handleAutoData}
+        compact
+      />
 
       <Tabs defaultValue="eggs" className="w-full">
         <TabsList className="grid grid-cols-4 w-full">

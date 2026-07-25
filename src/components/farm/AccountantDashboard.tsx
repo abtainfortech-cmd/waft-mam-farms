@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useAppStore } from '@/store/app'
 import { toast } from 'sonner'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, PieChart, Pie, Cell, Legend } from 'recharts'
+import { LiveSyncIndicator } from '@/components/farm/LiveSyncIndicator'
 import {
   Calculator, Plus, DollarSign, TrendingUp, TrendingDown, AlertCircle, FileText, CreditCard, Receipt
 } from 'lucide-react'
@@ -54,6 +55,17 @@ export function AccountantDashboard() {
   }, [selectedFarmId])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // Auto-refresh: Accountant sees sales data from sales team in real-time
+  const handleAutoData = useCallback((results: any[]) => {
+    if (results && results.length >= 5) {
+      setFarms(results[0] || [])
+      setExpenses(results[1] || [])
+      setEggSales(results[2] || [])
+      setBirdSales(results[3] || [])
+      setDashboard(results[4] || null)
+    }
+  }, [])
 
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
   const filteredExpenses = expenses.filter(e => new Date(e.date).toISOString().split('T')[0] >= monthAgo)
@@ -184,6 +196,13 @@ export function AccountantDashboard() {
           </SelectContent>
         </Select>
       </div>
+
+      <LiveSyncIndicator
+        endpoints={['/api/farms', `/api/expenses${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/sales/eggs${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/sales/birds${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, '/api/dashboard']}
+        interval={15000}
+        onData={handleAutoData}
+        compact
+      />
 
       <Tabs defaultValue="record" className="w-full">
         <TabsList className="grid grid-cols-4 w-full">

@@ -1,0 +1,578 @@
+     1→'use client'
+     2→
+     3→import { useEffect, useState, useCallback } from 'react'
+     4→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+     5→import { Badge } from '@/components/ui/badge'
+     6→import { Button } from '@/components/ui/button'
+     7→import { Input } from '@/components/ui/input'
+     8→import { Label } from '@/components/ui/label'
+     9→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    10→import { Textarea } from '@/components/ui/textarea'
+    11→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    12→import { ScrollArea } from '@/components/ui/scroll-area'
+    13→import { Skeleton } from '@/components/ui/skeleton'
+    14→import { useAppStore } from '@/store/app'
+    15→import { toast } from 'sonner'
+    16→import {
+    17→  Stethoscope, Plus, Shield, AlertTriangle, Syringe, Activity, CheckCircle2, Clock, Heart
+    18→} from 'lucide-react'
+    19→
+    20→interface Farm { id: string; name: string; flocks: any[] }
+    21→interface Vaccination { id: string; vaccineName: string; scheduledDate: string; administeredDate: string | null; status: string; method: string; flock: { name: string; birdType: string; birdCount: number }; farm: { name: string } }
+    22→interface Treatment { id: string; date: string; diagnosis: string; medication: string; dosage: string; duration: string; cost: number; status: string; flock: { name: string }; farm: { name: string } }
+    23→interface HealthCheck { id: string; date: string; overallStatus: string; symptoms: string | null; bodyCondition: string | null; temperature: number | null; recommendations: string | null; flock: { name: string; birdType: string }; farm: { name: string } }
+    24→
+    25→export function VetDashboard() {
+    26→  const { selectedFarmId, setFarm } = useAppStore()
+    27→  const [farms, setFarms] = useState<Farm[]>([])
+    28→  const [vaccinations, setVaccinations] = useState<Vaccination[]>([])
+    29→  const [treatments, setTreatments] = useState<Treatment[]>([])
+    30→  const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([])
+    31→  const [loading, setLoading] = useState(true)
+    32→
+    33→  const fetchData = useCallback(async () => {
+    34→    setLoading(true)
+    35→    try {
+    36→      const [farmsRes, vacRes, treatRes, healthRes] = await Promise.all([
+    37→        fetch('/api/farms'),
+    38→        fetch(`/api/vaccinations${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`),
+    39→        fetch(`/api/treatments${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`),
+    40→        fetch(`/api/health${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`),
+    41→      ])
+    42→      if (farmsRes.ok) setFarms(await farmsRes.json())
+    43→      if (vacRes.ok) setVaccinations(await vacRes.json())
+    44→      if (treatRes.ok) setTreatments(await treatRes.json())
+    45→      if (healthRes.ok) setHealthChecks(await healthRes.json())
+    46→    } catch (e) { console.error(e) }
+    47→    finally { setLoading(false) }
+    48→  }, [selectedFarmId])
+    49→
+    50→  useEffect(() => { fetchData() }, [fetchData])
+    51→
+    52→  const now = new Date()
+    53→  const overdue = vaccinations.filter(v => new Date(v.scheduledDate) <= now && v.status !== 'Completed')
+    54→  const upcoming = vaccinations.filter(v => {
+    55→    const d = new Date(v.scheduledDate)
+    56→    const twoWeeks = new Date(now.getTime() + 14 * 86400000)
+    57→    return d > now && d <= twoWeeks && v.status !== 'Completed'
+    58→  })
+    59→  const completed = vaccinations.filter(v => v.status === 'Completed')
+    60→  const activeTreatments = treatments.filter(t => t.status === 'Ongoing')
+    61→
+    62→  const today = new Date().toISOString().split('T')[0]
+    63→
+    64→  const submitHealthCheck = async (e: React.FormEvent<HTMLFormElement>) => {
+    65→    e.preventDefault()
+    66→    const f = e.currentTarget
+    67→    const data = {
+    68→      flockId: (f.elements.namedItem('flockId') as HTMLSelectElement).value,
+    69→      farmId: (f.elements.namedItem('farmId') as HTMLSelectElement).value,
+    70→      date: today,
+    71→      overallStatus: (f.elements.namedItem('overallStatus') as HTMLSelectElement).value,
+    72→      symptoms: (f.elements.namedItem('symptoms') as HTMLInputElement).value || null,
+    73→      temperature: parseFloat((f.elements.namedItem('temperature') as HTMLInputElement).value) || null,
+    74→      bodyCondition: (f.elements.namedItem('bodyCondition') as HTMLSelectElement).value || null,
+    75→      recommendations: (f.elements.namedItem('recommendations') as HTMLTextAreaElement).value || null,
+    76→      vetOfficer: 'Vet Officer',
+    77→    }
+    78→    const res = await fetch('/api/health', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+    79→    if (res.ok) { toast.success('Health check recorded!'); f.reset(); fetchData() }
+    80→    else toast.error('Failed to save')
+    81→  }
+    82→
+    83→  const submitVaccination = async (e: React.FormEvent<HTMLFormElement>) => {
+    84→    e.preventDefault()
+    85→    const f = e.currentTarget
+    86→    const data = {
+    87→      flockId: (f.elements.namedItem('flockId') as HTMLSelectElement).value,
+    88→      farmId: (f.elements.namedItem('farmId') as HTMLSelectElement).value,
+    89→      vaccineName: (f.elements.namedItem('vaccineName') as HTMLSelectElement).value,
+    90→      scheduledDate: (f.elements.namedItem('scheduledDate') as HTMLInputElement).value || today,
+    91→      status: 'Scheduled',
+    92→      method: (f.elements.namedItem('method') as HTMLSelectElement).value || null,
+    93→      dosage: (f.elements.namedItem('dosage') as HTMLInputElement).value || null,
+    94→      cost: parseFloat((f.elements.namedItem('cost') as HTMLInputElement).value) || null,
+    95→      batchNo: (f.elements.namedItem('batchNo') as HTMLInputElement).value || null,
+    96→    }
+    97→    const res = await fetch('/api/vaccinations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+    98→    if (res.ok) { toast.success('Vaccination scheduled!'); f.reset(); fetchData() }
+    99→    else toast.error('Failed to schedule')
+   100→  }
+   101→
+   102→  const submitTreatment = async (e: React.FormEvent<HTMLFormElement>) => {
+   103→    e.preventDefault()
+   104→    const f = e.currentTarget
+   105→    const data = {
+   106→      flockId: (f.elements.namedItem('flockId') as HTMLSelectElement).value,
+   107→      farmId: (f.elements.namedItem('farmId') as HTMLSelectElement).value,
+   108→      date: today,
+   109→      diagnosis: (f.elements.namedItem('diagnosis') as HTMLInputElement).value,
+   110→      medication: (f.elements.namedItem('medication') as HTMLInputElement).value,
+   111→      dosage: (f.elements.namedItem('dosage') as HTMLInputElement).value || null,
+   112→      duration: (f.elements.namedItem('duration') as HTMLInputElement).value || null,
+   113→      cost: parseFloat((f.elements.namedItem('cost') as HTMLInputElement).value) || null,
+   114→      status: 'Ongoing',
+   115→      vetOfficer: 'Vet Officer',
+   116→    }
+   117→    const res = await fetch('/api/treatments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+   118→    if (res.ok) { toast.success('Treatment recorded!'); f.reset(); fetchData() }
+   119→    else toast.error('Failed to save')
+   120→  }
+   121→
+   122→  const markVaccinationDone = async (id: string) => {
+   123→    const res = await fetch('/api/vaccinations', {
+   124→      method: 'PUT',
+   125→      headers: { 'Content-Type': 'application/json' },
+   126→      body: JSON.stringify({ id, status: 'Completed', administeredDate: today }),
+   127→    })
+   128→    if (res.ok) { toast.success('Vaccination marked as completed'); fetchData() }
+   129→    else toast.error('Failed to update')
+   130→  }
+   131→
+   132→  if (loading && farms.length === 0) return <div className="grid grid-cols-2 gap-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
+   133→
+   134→  const statusColor = (status: string) => {
+   135→    switch (status) {
+   136→      case 'Overdue': return 'destructive'
+   137→      case 'Scheduled': return 'secondary'
+   138→      case 'Completed': return 'default'
+   139→      default: return 'secondary'
+   140→    }
+   141→  }
+   142→
+   143→  return (
+   144→    <div className="space-y-4 md:space-y-6">
+   145→      {/* Critical Alerts */}
+   146→      {overdue.length > 0 && (
+   147→        <Card className="border-red-200 bg-red-50">
+   148→          <CardContent className="p-3">
+   149→            <div className="flex items-center gap-2 mb-2">
+   150→              <AlertTriangle className="h-5 w-5 text-red-600" />
+   151→              <p className="text-sm font-bold text-red-800">{overdue.length} Overdue Vaccination{overdue.length > 1 ? 's' : ''}</p>
+   152→            </div>
+   153→            <ScrollArea className="max-h-32">
+   154→              <div className="space-y-1">
+   155→                {overdue.slice(0, 5).map(v => (
+   156→                  <div key={v.id} className="flex items-center gap-2 text-xs">
+   157→                    <Badge variant="destructive" className="text-[10px]">Overdue</Badge>
+   158→                    <span>{v.vaccineName}</span>
+   159→                    <span className="text-gray-500">·</span>
+   160→                    <span>{v.flock?.name}</span>
+   161→                    <span className="text-gray-500">·</span>
+   162→                    <span>{v.farm?.name}</span>
+   163→                    <Button size="sm" variant="outline" className="h-6 ml-auto text-[10px] px-2" onClick={() => markVaccinationDone(v.id)}>
+   164→                      Mark Done
+   165→                    </Button>
+   166→                  </div>
+   167→                ))}
+   168→              </div>
+   169→            </ScrollArea>
+   170→          </CardContent>
+   171→        </Card>
+   172→      )}
+   173→
+   174→      {/* KPI Cards */}
+   175→      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+   176→        <Card>
+   177→          <CardContent className="p-4">
+   178→            <div className="flex items-center gap-2 mb-1">
+   179→              <Shield className="h-4 w-4 text-red-600" />
+   180→              <span className="text-xs text-gray-500">Overdue</span>
+   181→            </div>
+   182→            <p className="text-2xl font-bold text-red-600">{overdue.length}</p>
+   183→            <p className="text-xs text-gray-500">vaccinations behind schedule</p>
+   184→          </CardContent>
+   185→        </Card>
+   186→        <Card>
+   187→          <CardContent className="p-4">
+   188→            <div className="flex items-center gap-2 mb-1">
+   189→              <Clock className="h-4 w-4 text-amber-600" />
+   190→              <span className="text-xs text-gray-500">Upcoming (14 days)</span>
+   191→            </div>
+   192→            <p className="text-2xl font-bold text-amber-600">{upcoming.length}</p>
+   193→            <p className="text-xs text-gray-500">vaccinations scheduled</p>
+   194→          </CardContent>
+   195→        </Card>
+   196→        <Card>
+   197→          <CardContent className="p-4">
+   198→            <div className="flex items-center gap-2 mb-1">
+   199→              <Activity className="h-4 w-4 text-purple-600" />
+   200→              <span className="text-xs text-gray-500">Active Treatments</span>
+   201→            </div>
+   202→            <p className="text-2xl font-bold text-purple-600">{activeTreatments.length}</p>
+   203→            <p className="text-xs text-gray-500">ongoing treatments</p>
+   204→          </CardContent>
+   205→        </Card>
+   206→        <Card>
+   207→          <CardContent className="p-4">
+   208→            <div className="flex items-center gap-2 mb-1">
+   209→              <Heart className="h-4 w-4 text-green-600" />
+   210→              <span className="text-xs text-gray-500">Health Checks</span>
+   211→            </div>
+   212→            <p className="text-2xl font-bold">{healthChecks.length}</p>
+   213→            <p className="text-xs text-gray-500">total recorded</p>
+   214→          </CardContent>
+   215→        </Card>
+   216→      </div>
+   217→
+   218→      {/* Farm Filter */}
+   219→      <div className="flex items-center gap-2">
+   220→        <Label className="text-xs text-gray-500">Farm:</Label>
+   221→        <Select value={selectedFarmId || 'all'} onValueChange={(v) => setFarm(v === 'all' ? null : v)}>
+   222→          <SelectTrigger className="w-48 h-8 text-xs"><SelectValue placeholder="All Farms" /></SelectTrigger>
+   223→          <SelectContent>
+   224→            <SelectItem value="all">All Farms</SelectItem>
+   225→            {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+   226→          </SelectContent>
+   227→        </Select>
+   228→      </div>
+   229→
+   230→      <Tabs defaultValue="schedule" className="w-full">
+   231→        <TabsList className="grid grid-cols-4 w-full">
+   232→          <TabsTrigger value="schedule"><Syringe className="h-3 w-3 mr-1" />Vaccinations</TabsTrigger>
+   233→          <TabsTrigger value="health"><Stethoscope className="h-3 w-3 mr-1" />Health</TabsTrigger>
+   234→          <TabsTrigger value="treatments"><Activity className="h-3 w-3 mr-1" />Treatments</TabsTrigger>
+   235→          <TabsTrigger value="history"><CheckCircle2 className="h-3 w-3 mr-1" />History</TabsTrigger>
+   236→        </TabsList>
+   237→
+   238→        <TabsContent value="schedule">
+   239→          <Card>
+   240→            <CardHeader className="pb-2">
+   241→              <CardTitle className="text-base">Schedule Vaccination</CardTitle>
+   242→              <CardDescription>Add a new vaccination to the schedule</CardDescription>
+   243→            </CardHeader>
+   244→            <CardContent>
+   245→              <form onSubmit={submitVaccination} className="grid grid-cols-2 md:grid-cols-3 gap-3">
+   246→                <div>
+   247→                  <Label className="text-xs">Farm *</Label>
+   248→                  <Select name="farmId" required>
+   249→                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select farm" /></SelectTrigger>
+   250→                    <SelectContent>
+   251→                      {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+   252→                    </SelectContent>
+   253→                  </Select>
+   254→                </div>
+   255→                <div>
+   256→                  <Label className="text-xs">Flock *</Label>
+   257→                  <Select name="flockId" required>
+   258→                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select flock" /></SelectTrigger>
+   259→                    <SelectContent>
+   260→                      {farms.flatMap(f => f.flocks.map(fl => <SelectItem key={fl.id} value={fl.id}>{fl.name} ({f.name})</SelectItem>))}
+   261→                    </SelectContent>
+   262→                  </Select>
+   263→                </div>
+   264→                <div>
+   265→                  <Label className="text-xs">Vaccine *</Label>
+   266→                  <Select name="vaccineName" required>
+   267→                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select vaccine" /></SelectTrigger>
+   268→                    <SelectContent>
+   269→                      {['Newcastle Disease', 'Gumboro', 'Fowl Pox', 'Fowl Typhoid', 'Infectious Bronchitis', 'Coryza', 'Newcastle Booster', 'Marek\'s Disease', 'Coccidiosis'].map(v => (
+   270→                        <SelectItem key={v} value={v}>{v}</SelectItem>
+   271→                      ))}
+   272→                    </SelectContent>
+   273→                  </Select>
+   274→                </div>
+   275→                <div>
+   276→                  <Label className="text-xs">Scheduled Date</Label>
+   277→                  <Input name="scheduledDate" type="date" defaultValue={today} className="h-9 text-sm" />
+   278→                </div>
+   279→                <div>
+   280→                  <Label className="text-xs">Method</Label>
+   281→                  <Select name="method">
+   282→                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Method" /></SelectTrigger>
+   283→                    <SelectContent>
+   284→                      <SelectItem value="Eye drop">Eye Drop</SelectItem>
+   285→                      <SelectItem value="Drinking water">Drinking Water</SelectItem>
+   286→                      <SelectItem value="Injection">Injection</SelectItem>
+   287→                      <SelectItem value="Spray">Spray</SelectItem>
+   288→                      <SelectItem value="Wing web puncture">Wing Web Puncture</SelectItem>
+   289→                    </SelectContent>
+   290→                  </Select>
+   291→                </div>
+   292→                <div>
+   293→                  <Label className="text-xs">Batch No.</Label>
+   294→                  <Input name="batchNo" placeholder="VAC-XXXX" className="h-9 text-sm" />
+   295→                </div>
+   296→                <div>
+   297→                  <Label className="text-xs">Cost (GHS)</Label>
+   298→                  <Input name="cost" type="number" min="0" step="0.5" placeholder="e.g. 150" className="h-9 text-sm" />
+   299→                </div>
+   300→                <div>
+   301→                  <Label className="text-xs">Dosage</Label>
+   302→                  <Input name="dosage" placeholder="e.g. 0.5ml per bird" className="h-9 text-sm" />
+   303→                </div>
+   304→                <div className="flex items-end col-span-2 md:col-span-3">
+   305→                  <Button type="submit" className="w-full md:w-auto h-9"><Plus className="h-3 w-3 mr-1" />Schedule Vaccination</Button>
+   306→                </div>
+   307→              </form>
+   308→            </CardContent>
+   309→          </Card>
+   310→
+   311→          {/* Vaccination List */}
+   312→          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+   313→            <Card>
+   314→              <CardHeader className="pb-2">
+   315→                <CardTitle className="text-base text-red-600">Overdue ({overdue.length})</CardTitle>
+   316→              </CardHeader>
+   317→              <CardContent>
+   318→                <ScrollArea className="max-h-56">
+   319→                  <div className="space-y-2">
+   320→                    {overdue.map(v => (
+   321→                      <div key={v.id} className="flex items-center gap-2 p-2 bg-red-50 rounded-lg text-sm">
+   322→                        <Badge variant="destructive">Overdue</Badge>
+   323→                        <div className="flex-1">
+   324→                          <p className="font-medium">{v.vaccineName}</p>
+   325→                          <p className="text-xs text-gray-500">{v.flock?.name} · {v.farm?.name} · {v.method || ''}</p>
+   326→                        </div>
+   327→                        <Button size="sm" variant="default" className="h-7 text-[10px]" onClick={() => markVaccinationDone(v.id)}>
+   328→                          Done
+   329→                        </Button>
+   330→                      </div>
+   331→                    ))}
+   332→                    {overdue.length === 0 && <p className="text-center text-gray-400 py-3 text-xs">All up to date!</p>}
+   333→                  </div>
+   334→                </ScrollArea>
+   335→              </CardContent>
+   336→            </Card>
+   337→
+   338→            <Card>
+   339→              <CardHeader className="pb-2">
+   340→                <CardTitle className="text-base text-amber-600">Upcoming ({upcoming.length})</CardTitle>
+   341→              </CardHeader>
+   342→              <CardContent>
+   343→                <ScrollArea className="max-h-56">
+   344→                  <div className="space-y-2">
+   345→                    {upcoming.map(v => (
+   346→                      <div key={v.id} className="flex items-center gap-2 p-2 bg-amber-50 rounded-lg text-sm">
+   347→                        <Badge variant="secondary">Scheduled</Badge>
+   348→                        <div className="flex-1">
+   349→                          <p className="font-medium">{v.vaccineName}</p>
+   350→                          <p className="text-xs text-gray-500">{v.flock?.name} · {v.farm?.name}</p>
+   351→                        </div>
+   352→                        <p className="text-xs text-amber-600">{new Date(v.scheduledDate).toLocaleDateString('en-GB')}</p>
+   353→                      </div>
+   354→                    ))}
+   355→                    {upcoming.length === 0 && <p className="text-center text-gray-400 py-3 text-xs">No upcoming vaccinations</p>}
+   356→                  </div>
+   357→                </ScrollArea>
+   358→              </CardContent>
+   359→            </Card>
+   360→          </div>
+   361→        </TabsContent>
+   362→
+   363→        <TabsContent value="health">
+   364→          <Card>
+   365→            <CardHeader className="pb-2">
+   366→              <CardTitle className="text-base">Record Health Check</CardTitle>
+   367→            </CardHeader>
+   368→            <CardContent>
+   369→              <form onSubmit={submitHealthCheck} className="grid grid-cols-2 md:grid-cols-3 gap-3">
+   370→                <div>
+   371→                  <Label className="text-xs">Farm *</Label>
+   372→                  <Select name="farmId" required>
+   373→                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select farm" /></SelectTrigger>
+   374→                    <SelectContent>
+   375→                      {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+   376→                    </SelectContent>
+   377→                  </Select>
+   378→                </div>
+   379→                <div>
+   380→                  <Label className="text-xs">Flock *</Label>
+   381→                  <Select name="flockId" required>
+   382→                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select flock" /></SelectTrigger>
+   383→                    <SelectContent>
+   384→                      {farms.flatMap(f => f.flocks.map(fl => <SelectItem key={fl.id} value={fl.id}>{fl.name} ({f.name})</SelectItem>))}
+   385→                    </SelectContent>
+   386→                  </Select>
+   387→                </div>
+   388→                <div>
+   389→                  <Label className="text-xs">Overall Status *</Label>
+   390→                  <Select name="overallStatus" required>
+   391→                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Status" /></SelectTrigger>
+   392→                    <SelectContent>
+   393→                      <SelectItem value="Good">Good</SelectItem>
+   394→                      <SelectItem value="Fair">Fair</SelectItem>
+   395→                      <SelectItem value="Poor">Poor</SelectItem>
+   396→                      <SelectItem value="Critical">Critical</SelectItem>
+   397→                    </SelectContent>
+   398→                  </Select>
+   399→                </div>
+   400→                <div>
+   401→                  <Label className="text-xs">Body Temp (C)</Label>
+   402→                  <Input name="temperature" type="number" step="0.1" placeholder="e.g. 41.5" className="h-9 text-sm" />
+   403→                </div>
+   404→                <div>
+   405→                  <Label className="text-xs">Body Condition</Label>
+   406→                  <Select name="bodyCondition">
+   407→                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
+   408→                    <SelectContent>
+   409→                      <SelectItem value="Good">Good</SelectItem>
+   410→                      <SelectItem value="Underweight">Underweight</SelectItem>
+   411→                      <SelectItem value="Overweight">Overweight</SelectItem>
+   412→                    </SelectContent>
+   413→                  </Select>
+   414→                </div>
+   415→                <div>
+   416→                  <Label className="text-xs">Symptoms Observed</Label>
+   417→                  <Input name="symptoms" placeholder="e.g. Coughing, Lethargy" className="h-9 text-sm" />
+   418→                </div>
+   419→                <div className="col-span-2">
+   420→                  <Label className="text-xs">Recommendations</Label>
+   421→                  <Textarea name="recommendations" placeholder="Veterinary recommendations..." className="text-sm min-h-[60px]" />
+   422→                </div>
+   423→                <div className="flex items-end">
+   424→                  <Button type="submit" className="w-full h-9"><Plus className="h-3 w-3 mr-1" />Save Check</Button>
+   425→                </div>
+   426→              </form>
+   427→            </CardContent>
+   428→          </Card>
+   429→
+   430→          {/* Recent Health Checks */}
+   431→          <Card className="mt-4">
+   432→            <CardHeader className="pb-2">
+   433→              <CardTitle className="text-base">Recent Health Checks</CardTitle>
+   434→            </CardHeader>
+   435→            <CardContent>
+   436→              <ScrollArea className="max-h-64">
+   437→                <div className="space-y-2">
+   438→                  {healthChecks.slice(0, 15).map(h => (
+   439→                    <div key={h.id} className={`flex items-center gap-3 p-2 rounded-lg text-sm ${
+   440→                      h.overallStatus === 'Critical' ? 'bg-red-50' :
+   441→                      h.overallStatus === 'Poor' ? 'bg-orange-50' :
+   442→                      h.overallStatus === 'Fair' ? 'bg-yellow-50' : 'bg-green-50'
+   443→                    }`}>
+   444→                      <Stethoscope className={`h-4 w-4 shrink-0 ${
+   445→                        h.overallStatus === 'Critical' ? 'text-red-600' :
+   446→                        h.overallStatus === 'Poor' ? 'text-orange-600' :
+   447→                        h.overallStatus === 'Fair' ? 'text-yellow-600' : 'text-green-600'
+   448→                      }`} />
+   449→                      <div className="flex-1">
+   450→                        <p className="font-medium">{h.flock?.name} ({h.flock?.birdType})</p>
+   451→                        <p className="text-xs text-gray-500">
+   452→                          {h.farm?.name} · {new Date(h.date).toLocaleDateString('en-GB')}
+   453→                          {h.symptoms ? ` · ${h.symptoms}` : ''}
+   454→                          {h.temperature ? ` · ${h.temperature}C` : ''}
+   455→                        </p>
+   456→                      </div>
+   457→                      <Badge variant={
+   458→                        h.overallStatus === 'Critical' ? 'destructive' :
+   459→                        h.overallStatus === 'Poor' ? 'destructive' :
+   460→                        h.overallStatus === 'Fair' ? 'secondary' : 'default'
+   461→                      }>{h.overallStatus}</Badge>
+   462→                    </div>
+   463→                  ))}
+   464→                  {healthChecks.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">No health checks recorded</p>}
+   465→                </div>
+   466→              </ScrollArea>
+   467→            </CardContent>
+   468→          </Card>
+   469→        </TabsContent>
+   470→
+   471→        <TabsContent value="treatments">
+   472→          <Card>
+   473→            <CardHeader className="pb-2">
+   474→              <CardTitle className="text-base">Record Treatment</CardTitle>
+   475→            </CardHeader>
+   476→            <CardContent>
+   477→              <form onSubmit={submitTreatment} className="grid grid-cols-2 md:grid-cols-3 gap-3">
+   478→                <div>
+   479→                  <Label className="text-xs">Farm *</Label>
+   480→                  <Select name="farmId" required>
+   481→                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select farm" /></SelectTrigger>
+   482→                    <SelectContent>
+   483→                      {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+   484→                    </SelectContent>
+   485→                  </Select>
+   486→                </div>
+   487→                <div>
+   488→                  <Label className="text-xs">Flock *</Label>
+   489→                  <Select name="flockId" required>
+   490→                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select flock" /></SelectTrigger>
+   491→                    <SelectContent>
+   492→                      {farms.flatMap(f => f.flocks.map(fl => <SelectItem key={fl.id} value={fl.id}>{fl.name} ({f.name})</SelectItem>))}
+   493→                    </SelectContent>
+   494→                  </Select>
+   495→                </div>
+   496→                <div>
+   497→                  <Label className="text-xs">Diagnosis *</Label>
+   498→                  <Input name="diagnosis" required placeholder="e.g. Respiratory infection" className="h-9 text-sm" />
+   499→                </div>
+   500→                <div>
+   501→                  <Label className="text-xs">Medication *</Label>
+   502→                  <Input name="medication" required placeholder="e.g. Oxytetracycline" className="h-9 text-sm" />
+   503→                </div>
+   504→                <div>
+   505→                  <Label className="text-xs">Dosage</Label>
+   506→                  <Input name="dosage" placeholder="e.g. As prescribed" className="h-9 text-sm" />
+   507→                </div>
+   508→                <div>
+   509→                  <Label className="text-xs">Duration</Label>
+   510→                  <Input name="duration" placeholder="e.g. 5 days" className="h-9 text-sm" />
+   511→                </div>
+   512→                <div>
+   513→                  <Label className="text-xs">Cost (GHS)</Label>
+   514→                  <Input name="cost" type="number" min="0" step="0.5" placeholder="e.g. 200" className="h-9 text-sm" />
+   515→                </div>
+   516→                <div className="flex items-end col-span-2">
+   517→                  <Button type="submit" className="w-full md:w-auto h-9"><Plus className="h-3 w-3 mr-1" />Record Treatment</Button>
+   518→                </div>
+   519→              </form>
+   520→            </CardContent>
+   521→          </Card>
+   522→
+   523→          <Card className="mt-4">
+   524→            <CardHeader className="pb-2">
+   525→              <CardTitle className="text-base">Treatment Records</CardTitle>
+   526→            </CardHeader>
+   527→            <CardContent>
+   528→              <ScrollArea className="max-h-64">
+   529→                <div className="space-y-2">
+   530→                  {treatments.map(t => (
+   531→                    <div key={t.id} className="flex items-center gap-3 p-2 bg-purple-50 rounded-lg text-sm">
+   532→                      <Activity className={`h-4 w-4 shrink-0 ${t.status === 'Ongoing' ? 'text-purple-600' : 'text-green-600'}`} />
+   533→                      <div className="flex-1">
+   534→                        <p className="font-medium">{t.diagnosis}</p>
+   535→                        <p className="text-xs text-gray-500">
+   536→                          {t.flock?.name} · {t.farm?.name} · {new Date(t.date).toLocaleDateString('en-GB')}
+   537→                        </p>
+   538→                        <p className="text-xs text-gray-500">{t.medication} · {t.dosage || ''} · {t.duration || ''}</p>
+   539→                      </div>
+   540→                      <Badge variant={t.status === 'Ongoing' ? 'secondary' : 'default'}>{t.status}</Badge>
+   541→                    </div>
+   542→                  ))}
+   543→                  {treatments.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">No treatments recorded</p>}
+   544→                </div>
+   545→              </ScrollArea>
+   546→            </CardContent>
+   547→          </Card>
+   548→        </TabsContent>
+   549→
+   550→        <TabsContent value="history">
+   551→          <Card>
+   552→            <CardHeader className="pb-2">
+   553→              <CardTitle className="text-base">Completed Vaccinations</CardTitle>
+   554→            </CardHeader>
+   555→            <CardContent>
+   556→              <ScrollArea className="max-h-72">
+   557→                <div className="space-y-2">
+   558→                  {completed.map(v => (
+   559→                    <div key={v.id} className="flex items-center gap-3 p-2 bg-green-50 rounded-lg text-sm">
+   560→                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+   561→                      <div className="flex-1">
+   562→                        <p className="font-medium">{v.vaccineName}</p>
+   563→                        <p className="text-xs text-gray-500">{v.flock?.name} · {v.farm?.name} · {v.method || ''}</p>
+   564→                      </div>
+   565→                      <p className="text-xs text-green-600">{v.administeredDate ? new Date(v.administeredDate).toLocaleDateString('en-GB') : ''}</p>
+   566→                    </div>
+   567→                  ))}
+   568→                  {completed.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">No completed vaccinations</p>}
+   569→                </div>
+   570→              </ScrollArea>
+   571→            </CardContent>
+   572→          </Card>
+   573→        </TabsContent>
+   574→      </Tabs>
+   575→    </div>
+   576→  )
+   577→}
+   578→

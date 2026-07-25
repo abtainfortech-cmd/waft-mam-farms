@@ -14,6 +14,7 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAppStore } from '@/store/app'
 import { toast } from 'sonner'
+import { LiveSyncIndicator } from '@/components/farm/LiveSyncIndicator'
 import {
   ShoppingBasket, Plus, Bird, DollarSign, Users, AlertCircle, CheckCircle, CreditCard, Package
 } from 'lucide-react'
@@ -50,6 +51,16 @@ export function SalesDashboard() {
   }, [selectedFarmId])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // Auto-refresh: Sales sees new records from farm hand, accountant etc.
+  const handleAutoData = useCallback((results: any[]) => {
+    if (results && results.length >= 4) {
+      setFarms(results[0] || [])
+      setCustomers(results[1] || [])
+      setEggSales(results[2] || [])
+      setBirdSales(results[3] || [])
+    }
+  }, [])
 
   const today = new Date().toISOString().split('T')[0]
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
@@ -173,6 +184,13 @@ export function SalesDashboard() {
           </SelectContent>
         </Select>
       </div>
+
+      <LiveSyncIndicator
+        endpoints={['/api/farms', '/api/customers', `/api/sales/eggs${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/sales/birds${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`]}
+        interval={15000}
+        onData={handleAutoData}
+        compact
+      />
 
       <Tabs defaultValue="egg-sales" className="w-full">
         <TabsList className="grid grid-cols-4 w-full">

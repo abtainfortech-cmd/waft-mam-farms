@@ -12,6 +12,7 @@ import { useAppStore } from '@/store/app'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, PieChart, Pie, Cell, Legend,
 } from 'recharts'
+import { LiveSyncIndicator } from '@/components/farm/LiveSyncIndicator'
 import {
   Building2, Egg, TrendingUp, TrendingDown, AlertTriangle, DollarSign, Bird, Activity, ChevronRight,
   RefreshCw, MapPin, AlertCircle, CheckCircle2, Clock, Shield
@@ -62,6 +63,11 @@ export function CEODashboard() {
   }, [])
 
   useEffect(() => { fetchDashboard() }, [fetchDashboard])
+
+  // Auto-refresh: CEO dashboard polls every 15s for shared data changes
+  const handleAutoData = useCallback((data: any) => {
+    if (data) setData(data)
+  }, [])
 
   if (loading || !data) {
     return (
@@ -390,7 +396,13 @@ export function CEODashboard() {
         </Card>
       </div>
 
-      <div className="flex justify-end">
+      {/* Live Sync Bar */}
+      <div className="flex items-center justify-between">
+        <LiveSyncIndicator
+          endpoints={['/api/dashboard']}
+          interval={15000}
+          onData={handleAutoData}
+        />
         <Button variant="outline" size="sm" onClick={fetchDashboard}>
           <RefreshCw className="h-3 w-3 mr-1" /> Refresh
         </Button>

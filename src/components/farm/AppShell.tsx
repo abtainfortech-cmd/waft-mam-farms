@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/sheet'
 import {
   Crown, ShoppingBasket, Egg, Calculator, Stethoscope,
-  LogOut, Menu, Building2, ChevronDown, Bird, RefreshCw
+  LogOut, Menu, Building2, ChevronDown, Bird, RefreshCw, Database
 } from 'lucide-react'
 import { CEODashboard } from '@/components/farm/CEODashboard'
 import { FarmHandDashboard } from '@/components/farm/FarmHandDashboard'
@@ -195,6 +195,11 @@ export function AppShell() {
           </header>
         )}
         <div className="p-4 md:p-6 max-w-6xl mx-auto">
+          {/* Shared Database Status Banner */}
+          <div className="hidden md:flex items-center gap-2 mb-3 text-[10px] text-gray-400">
+            <Database className="h-3 w-3" />
+            <span>Shared Database Active — All staff see live updates from every farm location</span>
+          </div>
           {renderDashboard()}
         </div>
       </main>
