@@ -3,12 +3,14 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-// Auto-apply SQLite performance settings on first connection
-// WAL mode, busy_timeout are set at the connection level via DATABASE_URL params
+// PostgreSQL on Neon (serverless) — supports pooled connections via DATABASE_URL
+// (PgBouncer) and direct migrations via DIRECT_URL. Prisma automatically handles
+// connection pooling for serverless environments like Vercel.
 
 // ============ CORE ENTITIES ============
 
