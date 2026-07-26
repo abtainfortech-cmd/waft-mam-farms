@@ -303,8 +303,9 @@ export async function POST() {
       }
     }
 
-    // Seed staff accounts (always - idempotent check)
-    if (existingStaff === 0) {
+    // Seed staff accounts — ONLY on the very first deploy (gated by hasSeeded)
+    // After a full reset, hasSeeded stays true so staff won't be re-created
+    if (existingStaff === 0 && !hasSeededBefore) {
       const farm1Ref = await db.farm.findFirst({ where: { name: 'Kumasi Main Farm' } })
       await db.staff.create({ data: { name: 'CEO (Farm Owner)', role: 'CEO', username: 'ceo', password: 'ceo123', phone: '+233 24 123 4567' } })
       await db.staff.create({ data: { name: 'Kwame Asante', role: 'SALES', username: 'sales', password: 'sales123', phone: '+233 20 555 1000' } })
@@ -313,8 +314,9 @@ export async function POST() {
       await db.staff.create({ data: { name: 'Dr. Yaw Mensah', role: 'VET', username: 'vet', password: 'vet123', phone: '+233 20 555 4000' } })
     }
 
-    // Seed announcements (always - idempotent check)
-    if (existingAnnouncements === 0) {
+    // Seed announcements — ONLY on the very first deploy (gated by hasSeeded)
+    // After a full reset, hasSeeded stays true so announcements won't come back
+    if (existingAnnouncements === 0 && !hasSeededBefore) {
       await db.announcement.create({
         data: {
           title: 'Welcome to WAFT MAM Farms',

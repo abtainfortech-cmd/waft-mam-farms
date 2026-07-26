@@ -408,50 +408,97 @@ export function CEODashboard() {
         </TabsContent>
       </Tabs>
 
-      {/* CEO Data Reset Section — moved above vaccinations for easy access */}
-      <Card className="border-red-200">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2 text-red-700">
-            <Trash2 className="h-4 w-4" />
-            Per-Record Data Reset (CEO Only)
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Reset individual record types to zero. For a full wipe of ALL data, use the &quot;Full Data Reset&quot; button at the top of this page.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {['DailyEggCollection', 'BirdMortality', 'FeedRecord', 'EggSale', 'BirdSale', 'Expense', 'Vaccination', 'Treatment', 'HealthCheck'].map(type => {
-              const labels: Record<string, string> = {
-                DailyEggCollection: 'Egg Collections',
-                BirdMortality: 'Mortality Records',
-                FeedRecord: 'Feed Records',
-                EggSale: 'Egg Sales',
-                BirdSale: 'Bird Sales',
-                Expense: 'Expenses',
-                Vaccination: 'Vaccinations',
-                Treatment: 'Treatments',
-                HealthCheck: 'Health Checks',
-              }
-              return (
-                <Button
-                  key={type}
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 gap-1"
-                  disabled={resetLoading === type}
-                  onClick={() => handleDataReset(type)}
-                >
-                  {resetLoading === type ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                  Reset {labels[type]}
-                </Button>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      {/* ============================================================
+         DANGER ZONE — clearly separated from vaccinations and reports
+         All destructive CEO actions live here, never mixed with
+         vaccination schedule or other operational content.
+      ============================================================ */}
+      <div className="mt-2">
+        <div className="flex items-center gap-2 mb-3 px-1">
+          <div className="h-px flex-1 bg-red-200" />
+          <span className="text-[10px] font-bold tracking-[0.2em] text-red-600 uppercase">
+            Danger Zone
+          </span>
+          <div className="h-px flex-1 bg-red-200" />
+        </div>
 
-      {/* Vaccination Alerts & Upcoming — moved below reset section */}
+        <Card className="border-2 border-red-300 bg-red-50/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2 text-red-700">
+              <Trash2 className="h-4 w-4" />
+              Reset Farm Records (CEO Only)
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Reset individual record types to zero, or perform a full wipe of ALL data. These actions are irreversible.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {/* Per-record reset buttons */}
+            <div>
+              <p className="text-[11px] font-medium text-red-700 mb-2">
+                Reset individual record types (zeros out numbers, keeps records): 
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {['DailyEggCollection', 'BirdMortality', 'FeedRecord', 'EggSale', 'BirdSale', 'Expense', 'Vaccination', 'Treatment', 'HealthCheck'].map(type => {
+                  const labels: Record<string, string> = {
+                    DailyEggCollection: 'Egg Collections',
+                    BirdMortality: 'Mortality Records',
+                    FeedRecord: 'Feed Records',
+                    EggSale: 'Egg Sales',
+                    BirdSale: 'Bird Sales',
+                    Expense: 'Expenses',
+                    Vaccination: 'Vaccinations',
+                    Treatment: 'Treatments',
+                    HealthCheck: 'Health Checks',
+                  }
+                  return (
+                    <Button
+                      key={type}
+                      size="sm"
+                      variant="outline"
+                      className="h-9 text-xs border-red-200 text-red-600 hover:bg-red-100 hover:text-red-700 gap-1 justify-start"
+                      disabled={resetLoading === type}
+                      onClick={() => handleDataReset(type)}
+                    >
+                      {resetLoading === type ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                      Reset {labels[type]}
+                    </Button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <Separator className="bg-red-200" />
+
+            {/* Full wipe CTA */}
+            <div className="bg-red-100 border border-red-300 rounded-lg p-3">
+              <p className="text-xs font-medium text-red-900 mb-1 flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Wipe ALL Data (Full Reset)
+              </p>
+              <p className="text-[11px] text-red-700 mb-2">
+                Permanently delete every record, farm, customer, and announcement. Only your CEO account remains. Use this for a fresh start.
+              </p>
+              <a href="#" onClick={(e) => { e.preventDefault(); const el = document.querySelector('[data-value="settings"]') as HTMLElement; el?.click(); setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 100); }}>
+                <Button variant="destructive" size="sm" className="h-9 text-xs gap-1.5 w-full sm:w-auto">
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Go to Full Data Reset
+                </Button>
+              </a>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex items-center gap-2 mt-3 mb-3 px-1">
+          <div className="h-px flex-1 bg-gray-200" />
+          <span className="text-[10px] font-bold tracking-[0.2em] text-gray-400 uppercase">
+            Operations
+          </span>
+          <div className="h-px flex-1 bg-gray-200" />
+        </div>
+      </div>
+
+      {/* Vaccination Alerts & Upcoming — clearly BELOW the Danger Zone separator */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-2">

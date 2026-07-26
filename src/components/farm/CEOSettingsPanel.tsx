@@ -517,6 +517,16 @@ export function CEOSettingsPanel() {
 
       <FarmNameEditor />
       <FarmLocationsManager />
+
+      {/* DANGER ZONE separator — visually distinct from the operational settings above */}
+      <div className="flex items-center gap-2 pt-4 px-1">
+        <div className="h-px flex-1 bg-red-200" />
+        <span className="text-[10px] font-bold tracking-[0.2em] text-red-600 uppercase">
+          Danger Zone
+        </span>
+        <div className="h-px flex-1 bg-red-200" />
+      </div>
+
       <FullDataReset />
     </div>
   )
