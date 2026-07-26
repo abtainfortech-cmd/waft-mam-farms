@@ -35,7 +35,7 @@ const roleConfig: Record<Role, { label: string; icon: React.ReactNode; color: st
 }
 
 function RoleSidebar() {
-  const { currentRole, currentUser, logout, selectedFarmId, setFarm, sidebarOpen, setSidebarOpen, toggleSidebar, viewRole, setViewRole } = useAppStore()
+  const { currentRole, currentUser, logout, selectedFarmId, setFarm, sidebarOpen, setSidebarOpen, toggleSidebar } = useAppStore()
   const [farms, setFarms] = useState<{ id: string; name: string; isActive: boolean }[]>([])
 
   useEffect(() => {
@@ -93,26 +93,8 @@ function RoleSidebar() {
 
       <Separator />
 
-      {/* Quick Role Switch - CEO only can see all roles */}
-      {currentRole === 'CEO' && (
-        <div className="px-3 py-2">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Switch Role</p>
-          <div className="space-y-1">
-            {(Object.keys(roleConfig) as Role[]).map((role) => (
-              <Button
-                key={role}
-                variant={viewRole === role ? 'secondary' : 'ghost'}
-                size="sm"
-                className={`w-full justify-start h-8 text-xs gap-2 ${viewRole === role ? 'font-medium' : ''}`}
-                onClick={() => { setViewRole(role); setFarm(null) }}
-              >
-                <span className={roleConfig[role].color}>{roleConfig[role].icon}</span>
-                {roleConfig[role].label}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* NOTE: Role switcher removed — each user only sees their own dashboard.
+          No crossover access between roles. */}
 
       <div className="flex-1" />
 
@@ -160,13 +142,11 @@ function RoleSidebar() {
 }
 
 export function AppShell() {
-  const { currentRole, currentUser, setRole, sidebarOpen, viewRole } = useAppStore()
+  const { currentRole, currentUser, setRole, sidebarOpen } = useAppStore()
 
-  // Determine which view to show (CEO can preview all dashboards)
-  const effectiveViewRole = viewRole || currentRole
-
+  // Each user only sees their OWN dashboard — no crossover access between roles
   const renderDashboard = () => {
-    switch (effectiveViewRole) {
+    switch (currentRole) {
       case 'CEO': return <CEOView />
       case 'SALES': return <SalesView />
       case 'FARM_HAND': return <FarmHandView />

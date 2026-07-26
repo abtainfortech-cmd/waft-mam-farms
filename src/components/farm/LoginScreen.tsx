@@ -167,26 +167,6 @@ export function LoginScreen() {
                 )}
               </Button>
             </form>
-
-            {/* Default Credentials Info */}
-            <div className="mt-6 pt-4 border-t">
-              <p className="text-xs text-gray-500 text-center mb-3">Default Login Credentials</p>
-              <div className="grid grid-cols-5 gap-1 text-[10px]">
-                {[
-                  { role: 'CEO', user: 'ceo', pass: 'ceo123' },
-                  { role: 'Sales', user: 'sales', pass: 'sales123' },
-                  { role: 'Farm', user: 'farmhand', pass: 'farm123' },
-                  { role: 'Accounts', user: 'accountant', pass: 'acc123' },
-                  { role: 'Vet', user: 'vet', pass: 'vet123' },
-                ].map((c) => (
-                  <div key={c.role} className="bg-gray-50 rounded p-1.5 text-center">
-                    <p className="font-semibold text-gray-700">{c.role}</p>
-                    <p className="text-gray-500">{c.user}</p>
-                    <p className="text-gray-400">{c.pass}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
           </CardContent>
         </Card>
 
