@@ -1,134 +1,159 @@
-# How to Put Your Farm App on the Internet (15 minutes, no coding)
+# Your App is Ready — Final 2 Steps
 
-Right now your app works only inside this chat. When the chat stops, the app stops — that's why you keep seeing "Network error".
+## ✅ What I Just Did For You
 
-To fix this **permanently**, we need to put the app on the internet. After that, you can open it any time from your phone or computer, just like any website.
+- Created your database on Neon (all 16 tables ready)
+- Saved your database connection
+- Prepared all your app's code in a Git repository, ready to push
 
-You will need to create **two free accounts** and click a few buttons. No coding. No technical words. Just follow the pictures below.
-
----
-
-## What you'll need
-
-- An email address (Gmail, Outlook, Yahoo — anything works)
-- 15 minutes of time
-- This guide open on your phone while you do the steps on a computer
+You don't need to do anything technical. Just follow the next 2 steps.
 
 ---
 
-## Step 1 — Create a free database (5 minutes)
+## Step 1 — Put the code on GitHub (5 minutes)
 
-Your farm records need to live somewhere safe. We'll use a free service called **Neon**.
+The code needs to be on GitHub so Vercel can grab it. Use **GitHub Desktop** (a free app — much easier than typing commands).
 
-1. Open this link in a new tab: **https://neon.tech**
-2. Click the **"Sign up"** button (top right corner).
-3. Click **"Continue with GitHub"** or **"Continue with Google"** — whichever is faster for you. (If you don't have either, create a Gmail account first — it's free.)
-4. Once logged in, you'll see a page asking to create your first project. Fill it in:
-   - **Name**: type `waft-mam` (or anything you like)
-   - **Region**: pick **Singapore (AWS Asia Pacific)** — this gives the fastest connection from Ghana
-   - **Postgres version**: leave it as default
-5. Click the green **"Create project"** button.
-6. A page will appear with a box that says **"Connection string"**. You'll see TWO tabs/buttons:
-   - One says **"Pooled connection"** (this is what the app uses)
-   - One says **"Direct connection"** (this is for setting up the database)
+### 1A. Install GitHub Desktop
 
-   👉 **Copy the Pooled connection string** and paste it somewhere safe (Notepad, Notes app, etc.)
-   👉 **Copy the Direct connection string** and paste it somewhere safe too.
+1. Go to: **https://desktop.github.com**
+2. Click the big blue **"Download for Windows"** (or Mac) button.
+3. Run the installer. Just click "Next" through everything.
+4. When it opens, sign in with the GitHub account you created earlier.
 
-   They look like long web links starting with `postgresql://` — that's normal.
+### 1B. Create a new repository in GitHub Desktop
 
-✅ **You now have a database.** Keep those two links safe — you'll need them in Step 3.
+1. In GitHub Desktop, click **"File"** (top left) → **"New repository"**
+2. Fill in:
+   - **Name**: `waft-mam-farms`
+   - **Local path**: click "Choose…" and select the folder where you want to store the project (e.g. your Documents folder)
+   - **Initialize this repository with a README**: leave UNCHECKED
+   - **Git ignore**: leave as "None"
+   - **License**: leave as "None"
+3. Click the blue **"Create repository"** button.
 
----
+### 1C. Copy the app code into that folder
 
-## Step 2 — Put your app code on GitHub (4 minutes)
+1. I'll give you a download link (or zip file) of the complete app code.
+2. Unzip it.
+3. Copy everything inside the unzipped folder.
+4. Paste it into the `waft-mam-farms` folder that GitHub Desktop just created (it will be in the location you picked in step 1B).
+5. If it asks "Do you want to replace files?" → click **"Replace"** for all.
 
-GitHub is just a free place to store your app's code so the hosting service (Step 3) can grab it.
+### 1D. Publish to GitHub
 
-1. Open this link in a new tab: **https://github.com**
-2. Click **"Sign up"** (top right) and create an account with your email.
-3. Once logged in, click the **"+"** icon (top right) → **"New repository"**.
-4. Fill in:
-   - **Repository name**: type `waft-mam-farms`
-   - **Private or Public**: pick **Private** (only you can see it)
-   - **Add a README file**: leave it UNCHECKED
-5. Click the green **"Create repository"** button.
+1. Go back to GitHub Desktop.
+2. You'll see a long list of files on the left — that's the app code. Good.
+3. At the bottom left, type anything in the **"Summary"** box (e.g. `initial code`).
+4. Click the blue **"Commit to main"** button.
+5. Now click the **"Publish repository"** button (top right).
+6. A popup appears. Leave "Keep this code private" CHECKED. Click **"Publish repository"**.
 
-You'll now see an empty page. **Don't close it** — we'll come back here.
-
-✅ **You now have a place to store the code.**
-
----
-
-### Now: send me the two database links from Step 1
-
-Once you've done Steps 1 and 2, paste the two long links (the `postgresql://...` ones) into this chat. I will:
-
-1. Push the app code to your GitHub repository for you
-2. Set up the database tables automatically
-3. Give you a single button to click that deploys everything
-
-After that, you'll have a permanent web address like `https://waft-mam-farms.vercel.app` that you can open from any device, any time, forever.
+✅ Your code is now on GitHub. (You can verify at https://github.com/YOUR_USERNAME/waft-mam-farms)
 
 ---
 
-## Step 3 — (I'll guide you when you get here)
+## Step 2 — Deploy to Vercel (3 minutes)
 
-Once you send me the two database links, I'll do most of the work. You'll just need to:
+Now we put the app on the internet.
 
-1. Click one button on **Vercel.com** (a free website host)
-2. Pick your GitHub repository from a dropdown
-3. Paste the two database links into two boxes
-4. Click **"Deploy"**
+### 2A. Sign up for Vercel
 
-That's it. About 3 minutes of clicking. Then your app is live on the internet.
+1. Go to: **https://vercel.com**
+2. Click **"Sign Up"** (top right).
+3. Click **"Continue with GitHub"** — use the same GitHub account.
+4. Authorize Vercel when it asks.
 
----
+### 2B. Import your project
 
-## After it's live — your first login
+1. On the Vercel dashboard, click the **"Add New"** button (top right) → **"Project"**.
+2. You'll see your `waft-mam-farms` GitHub repo listed under "Import Git Repository".
+3. Click the **"Import"** button next to it.
 
-Open your new web address (I'll give it to you after Step 3). The first time you open it, the app will automatically create sample data so you can see how everything works.
+### 2C. Add your database link (IMPORTANT — don't skip)
 
-Log in with:
+On the import page, scroll down to **"Environment Variables"**. You need to add **TWO** variables:
 
-| Role | Username | Password |
-|------|----------|----------|
-| CEO (you) | `ceo` | `ceo123` |
-| Sales | `sales` | `sales123` |
-| Farm Hand | `farmhand` | `farm123` |
-| Accountant | `accountant` | `acc123` |
-| Vet | `vet` | `vet123` |
+**First variable:**
+- **Name** (the small box): type exactly `DATABASE_URL`
+- **Value** (the big box): paste this exactly:
+  ```
+  postgresql://neondb_owner:npg_K4MHYFd9oJWO@ep-nameless-violet-ay45f9wc-pooler.c-5.us-east-2.aws.neon.tech/neondb?sslmode=require&pgbouncer=true&connect_timeout=15
+  ```
+- Click the **"Add"** button next to it.
 
-Then go to **CEO → Settings** to:
-- Change your farm's name to your real business name
-- Add your real farm locations (and delete the sample ones)
-- Click **"Full Data Reset"** if you want to wipe all the sample data and start fresh
+**Second variable:**
+- **Name**: type exactly `DIRECT_URL`
+- **Value**: paste this exactly:
+  ```
+  postgresql://neondb_owner:npg_K4MHYFd9oJWO@ep-nameless-violet-ay45f9wc.c-5.us-east-2.aws.neon.tech/neondb?sslmode=require
+  ```
+- Click **"Add"**.
 
----
+⚠️ **Critical:** The two links are SLIGHTLY different. The DATABASE_URL has `-pooler` in the middle, the DIRECT_URL does NOT. Make sure you paste them exactly as shown above.
 
-## Frequently asked questions
+### 2D. Deploy!
 
-**"Is this really free?"**
-Yes. Neon's free tier holds up to 10GB of data (way more than you'll ever need). Vercel's free tier handles 100,000 visits per month. GitHub is free for private repos.
+1. Click the big blue **"Deploy"** button at the bottom.
+2. Wait ~2-3 minutes. You'll see a progress screen with build logs.
+3. When it's done, you'll see **"Congratulations!"** with confetti.
+4. Click the big **"Visit"** button.
 
-**"Will my data be safe?"**
-Yes. Neon backs up your data automatically. Even if your phone is stolen or your computer crashes, your farm records are safe in the cloud.
-
-**"What if I get stuck?"**
-Just paste the error message or screenshot into this chat. I'll walk you through it.
-
-**"Do I need to do this every time I want to use the app?"**
-No. You do this **once**. After that, you just open the web address and log in — like opening Gmail or Facebook.
-
-**"Can my staff also log in?"**
-Yes. Anyone you give a username and password to can log in from their own phone. They just need the web address. The CEO controls who has access under **Access Control**.
+🎉 **Your app is now LIVE on the internet!** You'll see a web address like `https://waft-mam-farms-xxx.vercel.app`. Bookmark it.
 
 ---
 
-## Quick summary
+## Step 3 — First Login
 
-1. **Step 1**: Sign up at neon.tech → copy 2 database links (5 min)
-2. **Step 2**: Sign up at github.com → create empty repo (4 min)
-3. **Paste the 2 links in this chat** — I'll do the rest
+When you visit your new web address:
 
-Total time on your end: **~10 minutes of clicking**. After that, your app is live forever.
+1. The page will load and **automatically create sample data** (5 staff accounts, 3 farms, 30 days of records).
+2. Wait about 5 seconds for it to finish.
+3. Log in with:
+   - **Username**: `ceo`
+   - **Password**: `ceo123`
+
+You should now see your dashboard with 5 tabs at the top:
+- **Dashboard** — overview
+- **Pending** — amendment requests
+- **Announcements** — messages to staff
+- **Settings** — ⭐ edit farm name, add/delete farms, full data reset
+- **Access Control** — manage staff accounts
+
+---
+
+## Step 4 — Customize Your Farm (do this once)
+
+Once logged in as CEO:
+
+1. Click the **"Settings"** tab.
+2. **Farm Name** card → click "Edit" → type your real business name → "Save".
+3. **Farm Locations** card → click "Add Farm" to add your real farm locations.
+   - Or click "Remove" next to "Kumasi Main Farm", "Accra Branch", "Tamale Farm" to delete the sample ones.
+4. **Full Data Reset** card → if you want to wipe ALL the sample data and start fresh, click "Start Full Reset" → type "RESET" → click "Confirm".
+
+After that, your app is 100% ready for real daily use.
+
+---
+
+## That's It!
+
+Your web address works on:
+- 📱 Your phone (save to home screen)
+- 💻 Your computer
+- 📲 Your staff's phones (share the web address with them)
+
+Anyone can log in from anywhere, 24/7. No more "Network error" — ever.
+
+---
+
+## If You Get Stuck
+
+| Problem | What to do |
+|---------|-----------|
+| "Cannot find module" during Vercel build | Make sure you copied ALL the files (including hidden ones like `package.json`) into the GitHub folder |
+| Vercel shows "Deployment Failed" | Check that you added BOTH `DATABASE_URL` and `DIRECT_URL` exactly as shown |
+| Login fails with "Invalid username or password" | Wait 10 seconds after the page loads — the auto-seed is still running. Then refresh and try again. |
+| "Database connection failed" | Make sure you used the `-pooler` URL for `DATABASE_URL` (with `&pgbouncer=true` at the end) |
+
+If anything else breaks, take a screenshot and paste it in the chat. I'll help.
