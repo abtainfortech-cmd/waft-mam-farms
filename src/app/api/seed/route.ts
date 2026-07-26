@@ -3,12 +3,19 @@ import { db } from '@/lib/db'
 
 export async function POST() {
   try {
+    // Check the "hasSeeded" flag — once seeded, NEVER auto-seed again (even after a full reset)
+    // This prevents sample data from coming back after the CEO wipes it.
+    const settings = await db.farmSettings.findFirst()
+    const hasSeededBefore = settings?.hasSeeded === true
+
     // Check if data already exists - still seed staff and announcements if missing
     const existingFarms = await db.farm.count()
     const existingStaff = await db.staff.count()
     const existingAnnouncements = await db.announcement.count()
 
-    if (existingFarms === 0) {
+    // Only auto-seed sample data on the VERY FIRST visit (before hasSeeded was set)
+    // After a full reset, hasSeeded stays true → no more sample data appears
+    if (existingFarms === 0 && !hasSeededBefore) {
 
     // Create Farms
     const farm1 = await db.farm.create({
@@ -285,7 +292,16 @@ export async function POST() {
       })
     }
 
-    } // end of if (existingFarms === 0)
+    } // end of if (existingFarms === 0 && !hasSeededBefore)
+
+    // Mark that we've seeded at least once — this prevents auto-reseed after a full reset
+    if (!hasSeededBefore) {
+      if (settings) {
+        await db.farmSettings.update({ where: { id: settings.id }, data: { hasSeeded: true } })
+      } else {
+        await db.farmSettings.create({ data: { hasSeeded: true } })
+      }
+    }
 
     // Seed staff accounts (always - idempotent check)
     if (existingStaff === 0) {

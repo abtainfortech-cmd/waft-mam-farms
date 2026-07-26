@@ -214,11 +214,11 @@ function CEOView() {
   return (
     <Tabs defaultValue="dashboard" className="w-full">
       <TabsList className="grid grid-cols-5 w-full mb-4">
-        <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-        <TabsTrigger value="pending">Pending</TabsTrigger>
-        <TabsTrigger value="announcements">Announcements</TabsTrigger>
-        <TabsTrigger value="settings">Settings</TabsTrigger>
-        <TabsTrigger value="access">Access Control</TabsTrigger>
+        <TabsTrigger value="dashboard" data-value="dashboard">Dashboard</TabsTrigger>
+        <TabsTrigger value="pending" data-value="pending">Pending</TabsTrigger>
+        <TabsTrigger value="announcements" data-value="announcements">Announcements</TabsTrigger>
+        <TabsTrigger value="settings" data-value="settings">Settings</TabsTrigger>
+        <TabsTrigger value="access" data-value="access">Access Control</TabsTrigger>
       </TabsList>
       <TabsContent value="dashboard">
         <AnnouncementPane />

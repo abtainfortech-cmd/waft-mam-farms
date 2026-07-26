@@ -15,9 +15,10 @@ datasource db {
 // ============ CORE ENTITIES ============
 
 model FarmSettings {
-  id        String   @id @default(cuid())
-  farmName  String   @default("WAFT MAM Farms and Trading Hub")
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  farmName    String   @default("WAFT MAM Farms and Trading Hub")
+  hasSeeded   Boolean  @default(false)  // Prevents auto-reseed after a full reset
+  updatedAt   DateTime @updatedAt
 }
 
 model Farm {
