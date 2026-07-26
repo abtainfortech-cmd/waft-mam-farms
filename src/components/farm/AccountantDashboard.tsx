@@ -43,6 +43,14 @@ export function AccountantDashboard() {
   const [expCategory, setExpCategory] = useState('')
   const [expPaymentStatus, setExpPaymentStatus] = useState('Paid')
 
+  // Controlled input state for expense form
+  const [expDate, setExpDate] = useState(new Date().toISOString().split('T')[0])
+  const [expDescription, setExpDescription] = useState('')
+  const [expAmount, setExpAmount] = useState('')
+  const [expDueDate, setExpDueDate] = useState('')
+  const [expVendor, setExpVendor] = useState('')
+  const [expReceiptNo, setExpReceiptNo] = useState('')
+
   useEffect(() => {
     if (selectedFarmId) setExpFarmId(selectedFarmId)
   }, [selectedFarmId])
@@ -131,24 +139,33 @@ export function AccountantDashboard() {
 
   const submitExpense = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const f = e.currentTarget
     try {
+      const amount = Number(expAmount)
+      if (!expFarmId || !expCategory) { toast.error('Please select farm and category'); return }
+      if (!amount || amount <= 0) { toast.error('Please enter a valid amount'); return }
+      if (!expDescription.trim()) { toast.error('Please enter a description'); return }
       const data = {
         farmId: expFarmId,
-        date: (f.elements.namedItem('date') as HTMLInputElement).value || today,
+        date: expDate || new Date().toISOString().split('T')[0],
         category: expCategory,
-        description: (f.elements.namedItem('description') as HTMLInputElement).value,
-        amount: parseFloat((f.elements.namedItem('amount') as HTMLInputElement).value) || 0,
+        description: expDescription.trim(),
+        amount: amount,
         paymentStatus: expPaymentStatus,
-        dueDate: (f.elements.namedItem('dueDate') as HTMLInputElement).value || null,
-        vendor: (f.elements.namedItem('vendor') as HTMLInputElement).value || null,
-        receiptNo: (f.elements.namedItem('receiptNo') as HTMLInputElement).value || null,
-        recordedBy: 'Accountant',
+        dueDate: expDueDate || null,
+        vendor: expVendor.trim() || null,
+        receiptNo: expReceiptNo.trim() || null,
+        recordedBy: currentUser?.name || 'Accountant',
       }
-      if (!data.farmId || !data.category) { toast.error('Please select farm and category'); return }
       const res = await fetch('/api/expenses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (res.ok) { toast.success('Expense recorded!'); f.reset(); fetchData() }
-      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to record expense') }
+      if (res.ok) {
+        toast.success('Expense recorded!')
+        setExpDescription(''); setExpAmount(''); setExpDueDate(''); setExpVendor(''); setExpReceiptNo('')
+        setExpCategory(''); setExpPaymentStatus('Paid')
+        fetchData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Failed to record expense')
+      }
     } catch (err) { console.error(err); toast.error('Failed to record expense') }
   }
 
@@ -358,11 +375,11 @@ export function AccountantDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Amount (GHS) *</Label>
-                  <Input name="amount" type="number" min="0" step="0.01" required placeholder="e.g. 500" className="h-9 text-sm" />
+                  <Input type="number" min="0" step="0.01" required placeholder="e.g. 500" value={expAmount} onChange={e => setExpAmount(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Date</Label>
-                  <Input name="date" type="date" defaultValue={today} className="h-9 text-sm" />
+                  <Input type="date" value={expDate} onChange={e => setExpDate(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Payment Status</Label>
@@ -377,19 +394,19 @@ export function AccountantDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Due Date</Label>
-                  <Input name="dueDate" type="date" className="h-9 text-sm" />
+                  <Input type="date" value={expDueDate} onChange={e => setExpDueDate(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Vendor</Label>
-                  <Input name="vendor" placeholder="Supplier name" className="h-9 text-sm" />
+                  <Input placeholder="Supplier name" value={expVendor} onChange={e => setExpVendor(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Receipt No.</Label>
-                  <Input name="receiptNo" placeholder="RCP-001" className="h-9 text-sm" />
+                  <Input placeholder="RCP-001" value={expReceiptNo} onChange={e => setExpReceiptNo(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Description *</Label>
-                  <Input name="description" required placeholder="Brief description" className="h-9 text-sm" />
+                  <Input required placeholder="Brief description" value={expDescription} onChange={e => setExpDescription(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div className="flex items-end col-span-2 md:col-span-3">
                   <Button type="submit" className="w-full md:w-auto h-9"><Plus className="h-3 w-3 mr-1" />Record Expense</Button>

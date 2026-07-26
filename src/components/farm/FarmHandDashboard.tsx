@@ -43,6 +43,22 @@ export function FarmHandDashboard() {
   const [feedFarmId, setFeedFarmId] = useState(selectedFarmId || '')
   const [feedType, setFeedType] = useState('')
 
+  // Controlled numerical input state — egg collection form
+  const [eggCrateCount, setEggCrateCount] = useState('')
+  const [eggEggsPerCrate, setEggEggsPerCrate] = useState('30')
+  const [eggBroken, setEggBroken] = useState('')
+  const [eggSoiled, setEggSoiled] = useState('')
+
+  // Controlled state — mortality form
+  const [mortCount, setMortCount] = useState('')
+  const [mortNotes, setMortNotes] = useState('')
+
+  // Controlled numerical input state — feed form
+  const [feedBagsUsed, setFeedBagsUsed] = useState('')
+  const [feedBagWeight, setFeedBagWeight] = useState('50')
+  const [feedCostPerBag, setFeedCostPerBag] = useState('')
+  const [feedSupplier, setFeedSupplier] = useState('')
+
   // Sync form defaults when global farm changes
   useEffect(() => {
     if (selectedFarmId) {
@@ -100,21 +116,28 @@ export function FarmHandDashboard() {
   const submitEggRecord = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     isSubmittingRef.current = true
-    const form = e.currentTarget
     try {
+      const crates = Number(eggCrateCount)
+      if (!eggFarmId) { toast.error('Please select a farm'); return }
+      if (!crates || crates <= 0) { toast.error('Please enter a valid crate count'); return }
       const data = {
         farmId: eggFarmId,
         date: today,
-        crateCount: parseInt((form.elements.namedItem('crateCount') as HTMLInputElement).value) || 0,
-        eggsPerCrate: parseInt((form.elements.namedItem('eggsPerCrate') as HTMLInputElement).value) || 30,
-        brokenCount: parseInt((form.elements.namedItem('brokenCount') as HTMLInputElement).value) || 0,
-        soiledCount: parseInt((form.elements.namedItem('soiledCount') as HTMLInputElement).value) || 0,
-        recordedBy: 'Farm Hand',
+        crateCount: crates,
+        eggsPerCrate: Number(eggEggsPerCrate) || 30,
+        brokenCount: Number(eggBroken) || 0,
+        soiledCount: Number(eggSoiled) || 0,
+        recordedBy: currentUser?.name || 'Farm Hand',
       }
-      if (!data.farmId) { toast.error('Please select a farm'); return }
       const res = await fetch('/api/eggs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (res.ok) { toast.success('Egg collection recorded!'); form.reset(); fetchData() }
-      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to record') }
+      if (res.ok) {
+        toast.success('Egg collection recorded!')
+        setEggCrateCount(''); setEggBroken(''); setEggSoiled('')
+        fetchData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Failed to record')
+      }
     } catch (err) { console.error(err); toast.error('Failed to record egg collection') }
     finally { isSubmittingRef.current = false }
   }
@@ -122,21 +145,28 @@ export function FarmHandDashboard() {
   const submitMortality = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     isSubmittingRef.current = true
-    const form = e.currentTarget
     try {
+      const count = Number(mortCount)
+      if (!mortFarmId || !mortFlockId) { toast.error('Please select farm and flock'); return }
+      if (!count || count <= 0) { toast.error('Please enter a valid count'); return }
       const data = {
         farmId: mortFarmId,
         flockId: mortFlockId,
         date: today,
-        count: parseInt((form.elements.namedItem('count') as HTMLInputElement).value) || 0,
+        count: count,
         cause: mortCause || 'Unknown',
-        notes: (form.elements.namedItem('notes') as HTMLTextAreaElement)?.value || '',
-        recordedBy: 'Farm Hand',
+        notes: mortNotes || '',
+        recordedBy: currentUser?.name || 'Farm Hand',
       }
-      if (!data.farmId || !data.flockId) { toast.error('Please select farm and flock'); return }
       const res = await fetch('/api/mortality', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (res.ok) { toast.success('Mortality recorded'); form.reset(); fetchData() }
-      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to record') }
+      if (res.ok) {
+        toast.success('Mortality recorded')
+        setMortCount(''); setMortNotes(''); setMortCause('')
+        fetchData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Failed to record')
+      }
     } catch (err) { console.error(err); toast.error('Failed to record mortality') }
     finally { isSubmittingRef.current = false }
   }
@@ -144,22 +174,29 @@ export function FarmHandDashboard() {
   const submitFeed = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     isSubmittingRef.current = true
-    const form = e.currentTarget
     try {
+      const bags = Number(feedBagsUsed)
+      if (!feedFarmId || !feedType) { toast.error('Please select farm and feed type'); return }
+      if (!bags || bags <= 0) { toast.error('Please enter a valid bags used count'); return }
       const data = {
         farmId: feedFarmId,
         date: today,
         feedType: feedType,
-        bagsUsed: parseFloat((form.elements.namedItem('bagsUsed') as HTMLInputElement).value) || 0,
-        bagWeightKg: parseFloat((form.elements.namedItem('bagWeightKg') as HTMLInputElement).value) || 50,
-        costPerBag: parseFloat((form.elements.namedItem('costPerBag') as HTMLInputElement).value) || 0,
-        supplier: (form.elements.namedItem('supplier') as HTMLInputElement)?.value || '',
-        recordedBy: 'Farm Hand',
+        bagsUsed: bags,
+        bagWeightKg: Number(feedBagWeight) || 50,
+        costPerBag: Number(feedCostPerBag) || 0,
+        supplier: feedSupplier || '',
+        recordedBy: currentUser?.name || 'Farm Hand',
       }
-      if (!data.farmId || !data.feedType) { toast.error('Please select farm and feed type'); return }
       const res = await fetch('/api/feed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (res.ok) { toast.success('Feed record saved'); form.reset(); fetchData() }
-      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to save feed record') }
+      if (res.ok) {
+        toast.success('Feed record saved')
+        setFeedBagsUsed(''); setFeedCostPerBag(''); setFeedSupplier(''); setFeedType('')
+        fetchData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Failed to save feed record')
+      }
     } catch (err) { console.error(err); toast.error('Failed to save feed record') }
     finally { isSubmittingRef.current = false }
   }
@@ -259,19 +296,19 @@ export function FarmHandDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Crates Collected *</Label>
-                  <Input name="crateCount" type="number" min="0" required placeholder="e.g. 25" className="h-9 text-sm" />
+                  <Input type="number" min="0" required placeholder="e.g. 25" value={eggCrateCount} onChange={e => setEggCrateCount(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Eggs per Crate</Label>
-                  <Input name="eggsPerCrate" type="number" defaultValue="30" min="1" className="h-9 text-sm" />
+                  <Input type="number" min="1" value={eggEggsPerCrate} onChange={e => setEggEggsPerCrate(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Broken Eggs</Label>
-                  <Input name="brokenCount" type="number" min="0" defaultValue="0" className="h-9 text-sm" />
+                  <Input type="number" min="0" value={eggBroken} onChange={e => setEggBroken(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Soiled Eggs</Label>
-                  <Input name="soiledCount" type="number" min="0" defaultValue="0" className="h-9 text-sm" />
+                  <Input type="number" min="0" value={eggSoiled} onChange={e => setEggSoiled(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div className="flex items-end">
                   <Button type="submit" className="w-full h-9"><Plus className="h-3 w-3 mr-1" />Save</Button>
@@ -310,7 +347,7 @@ export function FarmHandDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Number of Deaths *</Label>
-                  <Input name="count" type="number" min="1" required placeholder="e.g. 3" className="h-9 text-sm" />
+                  <Input type="number" min="1" required placeholder="e.g. 3" value={mortCount} onChange={e => setMortCount(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Likely Cause</Label>
@@ -328,7 +365,7 @@ export function FarmHandDashboard() {
                 </div>
                 <div className="col-span-2">
                   <Label className="text-xs">Notes</Label>
-                  <Textarea name="notes" placeholder="Any additional observations..." className="text-sm min-h-[60px]" />
+                  <Textarea placeholder="Any additional observations..." value={mortNotes} onChange={e => setMortNotes(e.target.value)} className="text-sm min-h-[60px]" />
                 </div>
                 <div className="flex items-end">
                   <Button type="submit" variant="destructive" className="w-full h-9"><Plus className="h-3 w-3 mr-1" />Report Death</Button>
@@ -372,19 +409,19 @@ export function FarmHandDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Bags Used *</Label>
-                  <Input name="bagsUsed" type="number" min="0" step="0.5" required placeholder="e.g. 5" className="h-9 text-sm" />
+                  <Input type="number" min="0" step="0.5" required placeholder="e.g. 5" value={feedBagsUsed} onChange={e => setFeedBagsUsed(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Bag Weight (kg)</Label>
-                  <Input name="bagWeightKg" type="number" defaultValue="50" min="1" className="h-9 text-sm" />
+                  <Input type="number" min="1" value={feedBagWeight} onChange={e => setFeedBagWeight(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Cost per Bag (GHS)</Label>
-                  <Input name="costPerBag" type="number" min="0" placeholder="e.g. 180" className="h-9 text-sm" />
+                  <Input type="number" min="0" placeholder="e.g. 180" value={feedCostPerBag} onChange={e => setFeedCostPerBag(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Supplier</Label>
-                  <Input name="supplier" placeholder="e.g. Ghana Agro" className="h-9 text-sm" />
+                  <Input placeholder="e.g. Ghana Agro" value={feedSupplier} onChange={e => setFeedSupplier(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div className="flex items-end col-span-2 md:col-span-3">
                   <Button type="submit" className="w-full h-9 md:w-auto"><Plus className="h-3 w-3 mr-1" />Save Feed Record</Button>

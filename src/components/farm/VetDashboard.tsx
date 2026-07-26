@@ -46,6 +46,24 @@ export function VetDashboard() {
   const [treatFarmId, setTreatFarmId] = useState(selectedFarmId || '')
   const [treatFlockId, setTreatFlockId] = useState('')
 
+  // Controlled input state for health check form
+  const [healthSymptoms, setHealthSymptoms] = useState('')
+  const [healthTemperature, setHealthTemperature] = useState('')
+  const [healthRecommendations, setHealthRecommendations] = useState('')
+
+  // Controlled input state for vaccination form
+  const [vacScheduledDate, setVacScheduledDate] = useState(new Date().toISOString().split('T')[0])
+  const [vacDosage, setVacDosage] = useState('')
+  const [vacCost, setVacCost] = useState('')
+  const [vacBatchNo, setVacBatchNo] = useState('')
+
+  // Controlled input state for treatment form
+  const [treatDiagnosis, setTreatDiagnosis] = useState('')
+  const [treatMedication, setTreatMedication] = useState('')
+  const [treatDosage, setTreatDosage] = useState('')
+  const [treatDuration, setTreatDuration] = useState('')
+  const [treatCost, setTreatCost] = useState('')
+
   useEffect(() => {
     if (selectedFarmId) {
       setHealthFarmId(selectedFarmId)
@@ -97,68 +115,86 @@ export function VetDashboard() {
 
   const submitHealthCheck = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const f = e.currentTarget
     try {
       const data = {
         flockId: healthFlockId,
         farmId: healthFarmId,
         date: today,
         overallStatus: healthStatus,
-        symptoms: (f.elements.namedItem('symptoms') as HTMLInputElement).value || null,
-        temperature: parseFloat((f.elements.namedItem('temperature') as HTMLInputElement).value) || null,
+        symptoms: healthSymptoms.trim() || null,
+        temperature: healthTemperature ? Number(healthTemperature) : null,
         bodyCondition: healthBodyCondition || null,
-        recommendations: (f.elements.namedItem('recommendations') as HTMLTextAreaElement)?.value || null,
-        vetOfficer: 'Vet Officer',
+        recommendations: healthRecommendations.trim() || null,
+        vetOfficer: currentUser?.name || 'Vet Officer',
       }
       if (!data.farmId || !data.flockId || !data.overallStatus) { toast.error('Please select farm, flock and status'); return }
       const res = await fetch('/api/health', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (res.ok) { toast.success('Health check recorded!'); f.reset(); fetchData() }
-      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to save') }
+      if (res.ok) {
+        toast.success('Health check recorded!')
+        setHealthSymptoms(''); setHealthTemperature(''); setHealthRecommendations('')
+        setHealthStatus(''); setHealthBodyCondition(''); setHealthFlockId('')
+        fetchData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Failed to save')
+      }
     } catch (err) { console.error(err); toast.error('Failed to save health check') }
   }
 
   const submitVaccination = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const f = e.currentTarget
     try {
       const data = {
         flockId: vacFlockId,
         farmId: vacFarmId,
         vaccineName: vacVaccineName,
-        scheduledDate: (f.elements.namedItem('scheduledDate') as HTMLInputElement).value || today,
+        scheduledDate: vacScheduledDate || today,
         status: 'Scheduled',
         method: vacMethod || null,
-        dosage: (f.elements.namedItem('dosage') as HTMLInputElement).value || null,
-        cost: parseFloat((f.elements.namedItem('cost') as HTMLInputElement).value) || null,
-        batchNo: (f.elements.namedItem('batchNo') as HTMLInputElement).value || null,
+        dosage: vacDosage.trim() || null,
+        cost: vacCost ? Number(vacCost) : null,
+        batchNo: vacBatchNo.trim() || null,
       }
       if (!data.farmId || !data.flockId || !data.vaccineName) { toast.error('Please select farm, flock and vaccine'); return }
       const res = await fetch('/api/vaccinations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (res.ok) { toast.success('Vaccination scheduled!'); f.reset(); fetchData() }
-      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to schedule') }
+      if (res.ok) {
+        toast.success('Vaccination scheduled!')
+        setVacVaccineName(''); setVacMethod(''); setVacDosage(''); setVacCost(''); setVacBatchNo('')
+        setVacFlockId('')
+        fetchData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Failed to schedule')
+      }
     } catch (err) { console.error(err); toast.error('Failed to schedule vaccination') }
   }
 
   const submitTreatment = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const f = e.currentTarget
     try {
       const data = {
         flockId: treatFlockId,
         farmId: treatFarmId,
         date: today,
-        diagnosis: (f.elements.namedItem('diagnosis') as HTMLInputElement).value,
-        medication: (f.elements.namedItem('medication') as HTMLInputElement).value,
-        dosage: (f.elements.namedItem('dosage') as HTMLInputElement).value || null,
-        duration: (f.elements.namedItem('duration') as HTMLInputElement).value || null,
-        cost: parseFloat((f.elements.namedItem('cost') as HTMLInputElement).value) || null,
+        diagnosis: treatDiagnosis.trim(),
+        medication: treatMedication.trim(),
+        dosage: treatDosage.trim() || null,
+        duration: treatDuration.trim() || null,
+        cost: treatCost ? Number(treatCost) : null,
         status: 'Ongoing',
-        vetOfficer: 'Vet Officer',
+        vetOfficer: currentUser?.name || 'Vet Officer',
       }
       if (!data.farmId || !data.flockId || !data.diagnosis || !data.medication) { toast.error('Please select farm, flock, diagnosis and medication'); return }
       const res = await fetch('/api/treatments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (res.ok) { toast.success('Treatment recorded!'); f.reset(); fetchData() }
-      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to save') }
+      if (res.ok) {
+        toast.success('Treatment recorded!')
+        setTreatDiagnosis(''); setTreatMedication(''); setTreatDosage(''); setTreatDuration(''); setTreatCost('')
+        setTreatFlockId('')
+        fetchData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Failed to save')
+      }
     } catch (err) { console.error(err); toast.error('Failed to save treatment') }
   }
 
@@ -329,7 +365,7 @@ export function VetDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Scheduled Date</Label>
-                  <Input name="scheduledDate" type="date" defaultValue={today} className="h-9 text-sm" />
+                  <Input type="date" value={vacScheduledDate} onChange={e => setVacScheduledDate(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Method</Label>
@@ -346,15 +382,15 @@ export function VetDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Batch No.</Label>
-                  <Input name="batchNo" placeholder="VAC-XXXX" className="h-9 text-sm" />
+                  <Input placeholder="VAC-XXXX" value={vacBatchNo} onChange={e => setVacBatchNo(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Cost (GHS)</Label>
-                  <Input name="cost" type="number" min="0" step="0.5" placeholder="e.g. 150" className="h-9 text-sm" />
+                  <Input type="number" min="0" step="0.5" placeholder="e.g. 150" value={vacCost} onChange={e => setVacCost(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Dosage</Label>
-                  <Input name="dosage" placeholder="e.g. 0.5ml per bird" className="h-9 text-sm" />
+                  <Input placeholder="e.g. 0.5ml per bird" value={vacDosage} onChange={e => setVacDosage(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div className="flex items-end col-span-2 md:col-span-3">
                   <Button type="submit" className="w-full md:w-auto h-9"><Plus className="h-3 w-3 mr-1" />Schedule Vaccination</Button>
@@ -454,7 +490,7 @@ export function VetDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Body Temp (C)</Label>
-                  <Input name="temperature" type="number" step="0.1" placeholder="e.g. 41.5" className="h-9 text-sm" />
+                  <Input type="number" step="0.1" placeholder="e.g. 41.5" value={healthTemperature} onChange={e => setHealthTemperature(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Body Condition</Label>
@@ -469,11 +505,11 @@ export function VetDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Symptoms Observed</Label>
-                  <Input name="symptoms" placeholder="e.g. Coughing, Lethargy" className="h-9 text-sm" />
+                  <Input placeholder="e.g. Coughing, Lethargy" value={healthSymptoms} onChange={e => setHealthSymptoms(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div className="col-span-2">
                   <Label className="text-xs">Recommendations</Label>
-                  <Textarea name="recommendations" placeholder="Veterinary recommendations..." className="text-sm min-h-[60px]" />
+                  <Textarea placeholder="Veterinary recommendations..." value={healthRecommendations} onChange={e => setHealthRecommendations(e.target.value)} className="text-sm min-h-[60px]" />
                 </div>
                 <div className="flex items-end">
                   <Button type="submit" className="w-full h-9"><Plus className="h-3 w-3 mr-1" />Save Check</Button>
@@ -550,23 +586,23 @@ export function VetDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Diagnosis *</Label>
-                  <Input name="diagnosis" required placeholder="e.g. Respiratory infection" className="h-9 text-sm" />
+                  <Input required placeholder="e.g. Respiratory infection" value={treatDiagnosis} onChange={e => setTreatDiagnosis(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Medication *</Label>
-                  <Input name="medication" required placeholder="e.g. Oxytetracycline" className="h-9 text-sm" />
+                  <Input required placeholder="e.g. Oxytetracycline" value={treatMedication} onChange={e => setTreatMedication(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Dosage</Label>
-                  <Input name="dosage" placeholder="e.g. As prescribed" className="h-9 text-sm" />
+                  <Input placeholder="e.g. As prescribed" value={treatDosage} onChange={e => setTreatDosage(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Duration</Label>
-                  <Input name="duration" placeholder="e.g. 5 days" className="h-9 text-sm" />
+                  <Input placeholder="e.g. 5 days" value={treatDuration} onChange={e => setTreatDuration(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Cost (GHS)</Label>
-                  <Input name="cost" type="number" min="0" step="0.5" placeholder="e.g. 200" className="h-9 text-sm" />
+                  <Input type="number" min="0" step="0.5" placeholder="e.g. 200" value={treatCost} onChange={e => setTreatCost(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div className="flex items-end col-span-2">
                   <Button type="submit" className="w-full md:w-auto h-9"><Plus className="h-3 w-3 mr-1" />Record Treatment</Button>

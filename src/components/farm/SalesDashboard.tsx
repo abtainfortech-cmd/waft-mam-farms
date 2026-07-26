@@ -37,6 +37,8 @@ export function SalesDashboard() {
   const [amendmentOpen, setAmendmentOpen] = useState(false)
   const [amendmentTarget, setAmendmentTarget] = useState<{ recordType: string; recordId: string; fields: any[] }>({ recordType: '', recordId: '', fields: [] })
 
+  const today = new Date().toISOString().split('T')[0]
+
   // Form Select state (Radix Select doesn't use native form elements)
   const [eggSaleCustomerId, setEggSaleCustomerId] = useState('')
   const [eggSaleFarmId, setEggSaleFarmId] = useState(selectedFarmId || '')
@@ -47,6 +49,22 @@ export function SalesDashboard() {
   const [birdSalePayment, setBirdSalePayment] = useState('Paid')
   const [birdAmountPaid, setBirdAmountPaid] = useState('')
   const [customerType, setCustomerType] = useState('Retail')
+
+  // Controlled numerical input state for egg sale form
+  const [eggCrateCount, setEggCrateCount] = useState('')
+  const [eggPricePerCrate, setEggPricePerCrate] = useState('')
+  const [eggSaleDate, setEggSaleDate] = useState(today)
+
+  // Controlled numerical input state for bird sale form
+  const [birdQuantity, setBirdQuantity] = useState('')
+  const [birdPricePerBird, setBirdPricePerBird] = useState('')
+  const [birdWeightPerBird, setBirdWeightPerBird] = useState('')
+  const [birdSaleDate, setBirdSaleDate] = useState(today)
+
+  // Controlled input state for customer form
+  const [custName, setCustName] = useState('')
+  const [custPhone, setCustPhone] = useState('')
+  const [custLocation, setCustLocation] = useState('')
 
   useEffect(() => {
     if (selectedFarmId) {
@@ -83,7 +101,6 @@ export function SalesDashboard() {
     }
   }, [])
 
-  const today = new Date().toISOString().split('T')[0]
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
   const monthEggSales = eggSales.filter(e => new Date(e.date).toISOString().split('T')[0] >= monthAgo)
   const monthBirdSales = birdSales.filter(e => new Date(e.date).toISOString().split('T')[0] >= monthAgo)
@@ -94,51 +111,67 @@ export function SalesDashboard() {
 
   const submitEggSale = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const f = e.currentTarget
     try {
-      const crates = parseInt((f.elements.namedItem('crateCount') as HTMLInputElement).value) || 0
-      const price = parseFloat((f.elements.namedItem('pricePerCrate') as HTMLInputElement).value) || 0
+      const crates = Number(eggCrateCount)
+      const price = Number(eggPricePerCrate)
+      if (!crates || crates <= 0) { toast.error('Please enter a valid crate count'); return }
+      if (!price || price <= 0) { toast.error('Please enter a valid price per crate'); return }
+      if (!eggSaleFarmId) { toast.error('Please select a farm'); return }
       const data = {
         customerId: eggSaleCustomerId || null,
-        date: (f.elements.namedItem('date') as HTMLInputElement).value || today,
+        date: eggSaleDate || today,
         crateCount: crates,
-        eggsPerCrate: parseInt((f.elements.namedItem('eggsPerCrate') as HTMLInputElement).value) || 30,
+        eggsPerCrate: 30,
         pricePerCrate: price,
         totalAmount: crates * price,
         paymentStatus: eggSalePayment,
-        amountPaid: eggSalePayment === 'Paid' ? crates * price : eggSalePayment === 'Partial' ? (parseFloat(eggAmountPaid) || 0) : 0,
+        amountPaid: eggSalePayment === 'Paid' ? crates * price : eggSalePayment === 'Partial' ? (Number(eggAmountPaid) || 0) : 0,
         farmId: eggSaleFarmId,
-        recordedBy: 'Sales',
+        recordedBy: currentUser?.name || 'Sales',
       }
-      if (!data.farmId) { toast.error('Please select a farm'); return }
       const res = await fetch('/api/sales/eggs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (res.ok) { toast.success('Egg sale recorded!'); f.reset(); setEggAmountPaid(''); fetchData() }
-      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to record sale') }
+      if (res.ok) {
+        toast.success('Egg sale recorded!')
+        setEggCrateCount(''); setEggPricePerCrate(''); setEggAmountPaid('')
+        setEggSaleCustomerId(''); setEggSalePayment('Paid')
+        fetchData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Failed to record sale')
+      }
     } catch (err) { console.error(err); toast.error('Failed to record sale') }
   }
 
   const submitBirdSale = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const f = e.currentTarget
     try {
-      const qty = parseInt((f.elements.namedItem('quantity') as HTMLInputElement).value) || 0
-      const price = parseFloat((f.elements.namedItem('pricePerBird') as HTMLInputElement).value) || 0
+      const qty = Number(birdQuantity)
+      const price = Number(birdPricePerBird)
+      if (!qty || qty <= 0) { toast.error('Please enter a valid quantity'); return }
+      if (!price || price <= 0) { toast.error('Please enter a valid price per bird'); return }
+      if (!birdSaleFarmId) { toast.error('Please select a farm'); return }
       const data = {
         customerId: birdSaleCustomerId || null,
-        date: (f.elements.namedItem('date') as HTMLInputElement).value || today,
+        date: birdSaleDate || today,
         quantity: qty,
-        weightPerBirdKg: parseFloat((f.elements.namedItem('weightPerBirdKg') as HTMLInputElement).value) || null,
+        weightPerBirdKg: birdWeightPerBird ? Number(birdWeightPerBird) : null,
         pricePerBird: price,
         totalAmount: qty * price,
         paymentStatus: birdSalePayment,
-        amountPaid: birdSalePayment === 'Paid' ? qty * price : birdSalePayment === 'Partial' ? (parseFloat(birdAmountPaid) || 0) : 0,
+        amountPaid: birdSalePayment === 'Paid' ? qty * price : birdSalePayment === 'Partial' ? (Number(birdAmountPaid) || 0) : 0,
         farmId: birdSaleFarmId,
-        recordedBy: 'Sales',
+        recordedBy: currentUser?.name || 'Sales',
       }
-      if (!data.farmId) { toast.error('Please select a farm'); return }
       const res = await fetch('/api/sales/birds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (res.ok) { toast.success('Bird sale recorded!'); f.reset(); setBirdAmountPaid(''); fetchData() }
-      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to record sale') }
+      if (res.ok) {
+        toast.success('Bird sale recorded!')
+        setBirdQuantity(''); setBirdPricePerBird(''); setBirdWeightPerBird(''); setBirdAmountPaid('')
+        setBirdSaleCustomerId(''); setBirdSalePayment('Paid')
+        fetchData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Failed to record sale')
+      }
     } catch (err) { console.error(err); toast.error('Failed to record sale') }
   }
 
@@ -149,18 +182,23 @@ export function SalesDashboard() {
 
   const addCustomer = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const f = e.currentTarget
     try {
       const data = {
-        name: (f.elements.namedItem('name') as HTMLInputElement).value,
-        phone: (f.elements.namedItem('phone') as HTMLInputElement).value || null,
-        location: (f.elements.namedItem('location') as HTMLInputElement).value || null,
+        name: custName.trim(),
+        phone: custPhone.trim() || null,
+        location: custLocation.trim() || null,
         customerType: customerType,
       }
       if (!data.name) { toast.error('Please enter customer name'); return }
       const res = await fetch('/api/customers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (res.ok) { toast.success('Customer added!'); f.reset(); fetchData() }
-      else { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Failed to add customer') }
+      if (res.ok) {
+        toast.success('Customer added!')
+        setCustName(''); setCustPhone(''); setCustLocation('')
+        fetchData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Failed to add customer')
+      }
     } catch (err) { console.error(err); toast.error('Failed to add customer') }
   }
 
@@ -262,15 +300,15 @@ export function SalesDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Date</Label>
-                  <Input name="date" type="date" defaultValue={today} className="h-9 text-sm" />
+                  <Input type="date" value={eggSaleDate} onChange={e => setEggSaleDate(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Crates *</Label>
-                  <Input name="crateCount" type="number" min="1" required placeholder="e.g. 10" className="h-9 text-sm" />
+                  <Input type="number" min="1" required placeholder="e.g. 10" value={eggCrateCount} onChange={e => setEggCrateCount(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Price per Crate (GHS) *</Label>
-                  <Input name="pricePerCrate" type="number" min="0" step="0.5" required placeholder="e.g. 35" className="h-9 text-sm" />
+                  <Input type="number" min="0" step="0.5" required placeholder="e.g. 35" value={eggPricePerCrate} onChange={e => setEggPricePerCrate(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Payment</Label>
@@ -365,19 +403,19 @@ export function SalesDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">Date</Label>
-                  <Input name="date" type="date" defaultValue={today} className="h-9 text-sm" />
+                  <Input type="date" value={birdSaleDate} onChange={e => setBirdSaleDate(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Quantity *</Label>
-                  <Input name="quantity" type="number" min="1" required placeholder="e.g. 50" className="h-9 text-sm" />
+                  <Input type="number" min="1" required placeholder="e.g. 50" value={birdQuantity} onChange={e => setBirdQuantity(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Price per Bird (GHS) *</Label>
-                  <Input name="pricePerBird" type="number" min="0" step="0.5" required placeholder="e.g. 30" className="h-9 text-sm" />
+                  <Input type="number" min="0" step="0.5" required placeholder="e.g. 30" value={birdPricePerBird} onChange={e => setBirdPricePerBird(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Avg Weight (kg)</Label>
-                  <Input name="weightPerBirdKg" type="number" step="0.1" placeholder="e.g. 1.8" className="h-9 text-sm" />
+                  <Input type="number" step="0.1" placeholder="e.g. 1.8" value={birdWeightPerBird} onChange={e => setBirdWeightPerBird(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Payment</Label>
@@ -453,15 +491,15 @@ export function SalesDashboard() {
               <form onSubmit={addCustomer} className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
                   <Label className="text-xs">Name *</Label>
-                  <Input name="name" required placeholder="Customer name" className="h-9 text-sm" />
+                  <Input required placeholder="Customer name" value={custName} onChange={e => setCustName(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Phone</Label>
-                  <Input name="phone" placeholder="+233..." className="h-9 text-sm" />
+                  <Input placeholder="+233..." value={custPhone} onChange={e => setCustPhone(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Location</Label>
-                  <Input name="location" placeholder="Town/City" className="h-9 text-sm" />
+                  <Input placeholder="Town/City" value={custLocation} onChange={e => setCustLocation(e.target.value)} className="h-9 text-sm" />
                 </div>
                 <div>
                   <Label className="text-xs">Type</Label>
