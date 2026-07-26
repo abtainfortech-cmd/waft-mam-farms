@@ -477,25 +477,20 @@ function FullDataReset() {
             onClick={() => setConfirmStep(1)}>
             <Trash2 className="h-3 w-3" /> Start Full Reset
           </Button>
-        ) : confirmStep === 1 ? (
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-red-700">Type &quot;RESET&quot; to confirm:</p>
-            <Input
-              placeholder='Type "RESET" here'
-              className="h-9 text-sm border-red-300"
-              onChange={e => { if (e.target.value === 'RESET') setConfirmStep(2) }}
-            />
-            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setConfirmStep(0)}>
-              Cancel
-            </Button>
-          </div>
         ) : (
-          <div className="space-y-2">
-            <p className="text-xs text-red-700 font-medium">You are about to wipe ALL data. This cannot be undone.</p>
+          <div className="space-y-3">
+            <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-2.5">
+              <p className="text-xs font-medium text-yellow-900">
+                ⚠️ Are you absolutely sure?
+              </p>
+              <p className="text-[11px] text-yellow-800 mt-1">
+                This will permanently delete ALL data. Your CEO account will remain, but you will need to re-add farms and staff.
+              </p>
+            </div>
             <div className="flex gap-2">
               <Button variant="destructive" size="sm" onClick={handleFullReset} disabled={saving} className="h-8 text-xs gap-1">
-                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <AlertTriangle className="h-3 w-3" />}
-                {saving ? 'Resetting...' : 'Confirm: Delete Everything'}
+                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                {saving ? 'Resetting...' : 'Yes, Delete Everything'}
               </Button>
               <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setConfirmStep(0)}>
                 Cancel
