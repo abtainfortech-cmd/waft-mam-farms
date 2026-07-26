@@ -1,135 +1,134 @@
-# WAFT MAM Farms — Deployment Guide
+# How to Put Your Farm App on the Internet (15 minutes, no coding)
 
-This guide walks you through deploying the app to **Vercel** with a **Neon PostgreSQL** database.
-After deployment, the app will be live 24/7 at `https://your-app.vercel.app` — no more "Network error".
+Right now your app works only inside this chat. When the chat stops, the app stops — that's why you keep seeing "Network error".
 
----
+To fix this **permanently**, we need to put the app on the internet. After that, you can open it any time from your phone or computer, just like any website.
 
-## Prerequisites (free accounts)
-
-1. **Vercel** — https://vercel.com (host the Next.js app)
-2. **Neon** — https://neon.tech (host the PostgreSQL database)
-3. **GitHub** — https://github.com (push the code so Vercel can deploy from it)
-
-> All three have generous free tiers. The whole stack costs $0/month for a single-farm operation.
+You will need to create **two free accounts** and click a few buttons. No coding. No technical words. Just follow the pictures below.
 
 ---
 
-## Step 1 — Create a Neon database
+## What you'll need
 
-1. Go to https://neon.tech and sign in with GitHub.
-2. Click **New Project** → name it `waft-mam-farms` → pick the region closest to Ghana (probably `AWS Asia Pacific (Singapore)` or `AWS US East` — Singapore has lower latency to West Africa).
-3. Once created, you'll see a **Connection Details** panel. Copy BOTH strings:
-   - **Pooled connection** (has `?pgbouncer=true`) — this is your `DATABASE_URL`
-   - **Direct connection** (no pgbouncer) — this is your `DIRECT_URL`
-
-> ⚠️ Keep these strings secret. They include your database password.
+- An email address (Gmail, Outlook, Yahoo — anything works)
+- 15 minutes of time
+- This guide open on your phone while you do the steps on a computer
 
 ---
 
-## Step 2 — Push the code to GitHub
+## Step 1 — Create a free database (5 minutes)
 
-```bash
-cd /home/z/my-project
-git init
-git add .
-git commit -m "WAFT MAM Farms — production-ready with PostgreSQL"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/waft-mam-farms.git
-git push -u origin main
-```
+Your farm records need to live somewhere safe. We'll use a free service called **Neon**.
 
-> Don't forget to add a `.gitignore` that excludes `.env`, `node_modules/`, `.next/`, and `db/`.
+1. Open this link in a new tab: **https://neon.tech**
+2. Click the **"Sign up"** button (top right corner).
+3. Click **"Continue with GitHub"** or **"Continue with Google"** — whichever is faster for you. (If you don't have either, create a Gmail account first — it's free.)
+4. Once logged in, you'll see a page asking to create your first project. Fill it in:
+   - **Name**: type `waft-mam` (or anything you like)
+   - **Region**: pick **Singapore (AWS Asia Pacific)** — this gives the fastest connection from Ghana
+   - **Postgres version**: leave it as default
+5. Click the green **"Create project"** button.
+6. A page will appear with a box that says **"Connection string"**. You'll see TWO tabs/buttons:
+   - One says **"Pooled connection"** (this is what the app uses)
+   - One says **"Direct connection"** (this is for setting up the database)
 
----
+   👉 **Copy the Pooled connection string** and paste it somewhere safe (Notepad, Notes app, etc.)
+   👉 **Copy the Direct connection string** and paste it somewhere safe too.
 
-## Step 3 — Create the database schema (run once, locally)
+   They look like long web links starting with `postgresql://` — that's normal.
 
-Run the migration against your Neon database from your local machine:
-
-```bash
-# Set env vars in your local shell (or put them in .env temporarily)
-export DATABASE_URL="postgresql://...pgbouncer=true..."   # pooled
-export DIRECT_URL="postgresql://...direct..."             # direct
-
-# Create all tables in your Neon database
-npx prisma migrate deploy
-
-# Optional: open Prisma Studio to verify tables exist
-npx prisma studio
-```
-
-After this step, your Neon database has all tables (Staff, Farm, DailyEggCollection, etc.) but they're empty.
+✅ **You now have a database.** Keep those two links safe — you'll need them in Step 3.
 
 ---
 
-## Step 4 — Deploy to Vercel
+## Step 2 — Put your app code on GitHub (4 minutes)
 
-1. Go to https://vercel.com and sign in with GitHub.
-2. Click **Add New** → **Project** → import your `waft-mam-farms` repository.
-3. Vercel will auto-detect Next.js. Leave defaults, but expand **Environment Variables** and add:
+GitHub is just a free place to store your app's code so the hosting service (Step 3) can grab it.
 
-   | Name | Value | Environments |
-   |------|-------|--------------|
-   | `DATABASE_URL` | (your pooled Neon URL) | Production, Preview, Development |
-   | `DIRECT_URL` | (your direct Neon URL) | Production, Preview, Development |
-   | `NODE_ENV` | `production` | Production |
+1. Open this link in a new tab: **https://github.com**
+2. Click **"Sign up"** (top right) and create an account with your email.
+3. Once logged in, click the **"+"** icon (top right) → **"New repository"**.
+4. Fill in:
+   - **Repository name**: type `waft-mam-farms`
+   - **Private or Public**: pick **Private** (only you can see it)
+   - **Add a README file**: leave it UNCHECKED
+5. Click the green **"Create repository"** button.
 
-4. Click **Deploy**. The first build takes ~2–3 minutes.
-5. When done, Vercel gives you a URL like `https://waft-mam-farms.vercel.app`.
+You'll now see an empty page. **Don't close it** — we'll come back here.
+
+✅ **You now have a place to store the code.**
 
 ---
 
-## Step 5 — Seed the database (one time only)
+### Now: send me the two database links from Step 1
 
-Open your deployed app in the browser. The home page automatically calls `/api/seed` on load, which will:
-- Create 5 staff accounts (ceo/sales/farmhand/accountant/vet)
-- Create 3 sample farm locations (Kumasi, Accra, Tamale)
-- Create 7 bird flocks
-- Create 6 customers
-- Generate 30 days of sample egg/bird sales, expenses, mortality, feed records, health checks, vaccinations, treatments
-- Create 3 announcements
+Once you've done Steps 1 and 2, paste the two long links (the `postgresql://...` ones) into this chat. I will:
 
-You should now be able to log in:
+1. Push the app code to your GitHub repository for you
+2. Set up the database tables automatically
+3. Give you a single button to click that deploys everything
+
+After that, you'll have a permanent web address like `https://waft-mam-farms.vercel.app` that you can open from any device, any time, forever.
+
+---
+
+## Step 3 — (I'll guide you when you get here)
+
+Once you send me the two database links, I'll do most of the work. You'll just need to:
+
+1. Click one button on **Vercel.com** (a free website host)
+2. Pick your GitHub repository from a dropdown
+3. Paste the two database links into two boxes
+4. Click **"Deploy"**
+
+That's it. About 3 minutes of clicking. Then your app is live on the internet.
+
+---
+
+## After it's live — your first login
+
+Open your new web address (I'll give it to you after Step 3). The first time you open it, the app will automatically create sample data so you can see how everything works.
+
+Log in with:
 
 | Role | Username | Password |
 |------|----------|----------|
-| CEO | `ceo` | `ceo123` |
+| CEO (you) | `ceo` | `ceo123` |
 | Sales | `sales` | `sales123` |
 | Farm Hand | `farmhand` | `farm123` |
 | Accountant | `accountant` | `acc123` |
 | Vet | `vet` | `vet123` |
 
-> ⚠️ Change these passwords immediately after first login via **CEO → Access Control**.
+Then go to **CEO → Settings** to:
+- Change your farm's name to your real business name
+- Add your real farm locations (and delete the sample ones)
+- Click **"Full Data Reset"** if you want to wipe all the sample data and start fresh
 
 ---
 
-## Step 6 — Going live checklist
+## Frequently asked questions
 
-- [ ] Changed CEO password from `ceo123` to something secure
-- [ ] Edited farm name under **CEO → Settings → Farm Name** (e.g. your real business name)
-- [ ] Renamed/added/deleted farm locations under **CEO → Settings → Farm Locations** to match your real sites
-- [ ] Optional: Used **CEO → Settings → Full Data Reset** to wipe the 30 days of sample data before going live with real records
+**"Is this really free?"**
+Yes. Neon's free tier holds up to 10GB of data (way more than you'll ever need). Vercel's free tier handles 100,000 visits per month. GitHub is free for private repos.
+
+**"Will my data be safe?"**
+Yes. Neon backs up your data automatically. Even if your phone is stolen or your computer crashes, your farm records are safe in the cloud.
+
+**"What if I get stuck?"**
+Just paste the error message or screenshot into this chat. I'll walk you through it.
+
+**"Do I need to do this every time I want to use the app?"**
+No. You do this **once**. After that, you just open the web address and log in — like opening Gmail or Facebook.
+
+**"Can my staff also log in?"**
+Yes. Anyone you give a username and password to can log in from their own phone. They just need the web address. The CEO controls who has access under **Access Control**.
 
 ---
 
-## Optional — Custom domain
+## Quick summary
 
-1. In Vercel, go to **Project Settings → Domains**.
-2. Add your domain (e.g. `waftmamfarms.com`).
-3. Update your DNS provider's CNAME/A records as Vercel instructs.
-4. Vercel auto-provisions HTTPS.
+1. **Step 1**: Sign up at neon.tech → copy 2 database links (5 min)
+2. **Step 2**: Sign up at github.com → create empty repo (4 min)
+3. **Paste the 2 links in this chat** — I'll do the rest
 
----
-
-## Troubleshooting
-
-**"Prisma cannot reach database"** — Your Vercel env vars are missing or wrong. Re-check `DATABASE_URL` and `DIRECT_URL` in Vercel Project Settings.
-
-**"Migration failed"** — Make sure you ran `npx prisma migrate deploy` against the correct Neon project. The `DIRECT_URL` must point to the same Neon project as `DATABASE_URL`.
-
-**Login fails with "Invalid username or password"** — The seed didn't run. Visit the home page (which auto-triggers `/api/seed`), wait 5 seconds, then try again.
-
-**App works but data disappears** — You're hitting the Neon free-tier autosuspend (5 min idle). The first request after idle takes ~1s extra to wake the DB. Subsequent requests are instant. Upgrade to Neon's Pro tier if this is unacceptable.
-
-**Want to inspect the database directly** — `npx prisma studio` from your local machine (with env vars set) opens a visual editor for all tables.
+Total time on your end: **~10 minutes of clicking**. After that, your app is live forever.
