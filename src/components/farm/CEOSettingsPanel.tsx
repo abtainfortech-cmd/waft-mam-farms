@@ -13,8 +13,11 @@ import {
 } from '@/components/ui/dialog'
 import {
   Settings, Building2, Plus, Trash2, Pencil, Loader2, Check, X, AlertTriangle,
-  RotateCcw, MapPin, Phone, Navigation
+  RotateCcw, MapPin, Phone, Navigation, Bird, ChevronDown, ChevronUp
 } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Badge } from '@/components/ui/badge'
 
 interface FarmInfo {
   id: string
@@ -411,6 +414,318 @@ function FarmLocationsManager() {
   )
 }
 
+// ============ BIRD FLOCK / POPULATION MANAGER ============
+function BirdFlockManager() {
+  const [farms, setFarms] = useState<FarmInfo[]>([])
+  const [flocks, setFlocks] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [expandedFarm, setExpandedFarm] = useState<string | null>(null)
+
+  // Add flock form
+  const [addOpen, setAddOpen] = useState(false)
+  const [newFarmId, setNewFarmId] = useState('')
+  const [newName, setNewName] = useState('')
+  const [newType, setNewType] = useState('Layer')
+  const [newBreed, setNewBreed] = useState('Bovan Brown')
+  const [newCount, setNewCount] = useState('')
+  const [newAge, setNewAge] = useState('')
+  const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0])
+  const [newNotes, setNewNotes] = useState('')
+
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [farmsRes, flocksRes] = await Promise.all([
+        fetch('/api/farms'),
+        fetch('/api/flocks'),
+      ])
+      if (farmsRes.ok) setFarms(await farmsRes.json())
+      if (flocksRes.ok) setFlocks(await flocksRes.json())
+    } catch {} finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchData() }, [fetchData])
+
+  const handleAddFlock = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newFarmId || !newName.trim() || !newCount) {
+      toast.error('Farm, flock name, and bird count are required')
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch('/api/flocks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          farmId: newFarmId,
+          name: newName.trim(),
+          birdType: newType,
+          breed: newBreed,
+          birdCount: parseInt(newCount) || 0,
+          ageWeeks: parseInt(newAge) || 0,
+          dateArrival: newDate || new Date().toISOString(),
+          notes: newNotes.trim() || undefined,
+        }),
+      })
+      if (res.ok) {
+        toast.success(`Flock "${newName.trim()}" added with ${parseInt(newCount).toLocaleString()} birds`)
+        setAddOpen(false)
+        setNewName(''); setNewCount(''); setNewAge(''); setNewNotes('')
+        setNewDate(new Date().toISOString().split('T')[0])
+        fetchData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Failed to add flock')
+      }
+    } catch { toast.error('Network error') } finally { setSaving(false) }
+  }
+
+  const handleDeactivateFlock = async (flockId: string, flockName: string) => {
+    if (!confirm(`Deactivate flock "${flockName}"? The birds will no longer appear in counts, but all records are preserved.`)) return
+    setSaving(true)
+    try {
+      const res = await fetch('/api/flocks', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: flockId, isActive: false }),
+      })
+      if (res.ok) {
+        toast.success(`Flock "${flockName}" deactivated`)
+        fetchData()
+      } else {
+        toast.error('Failed to deactivate flock')
+      }
+    } catch { toast.error('Network error') } finally { setSaving(false) }
+  }
+
+  // Group flocks by farm
+  const farmsWithFlocks = farms.filter(f => f.isActive).map(farm => ({
+    ...farm,
+    flocks: flocks.filter(fl => fl.farmId === farm.id && fl.isActive),
+  }))
+  const totalBirds = flocks.filter(f => f.isActive).reduce((s, f) => s + f.birdCount, 0)
+  const totalInitial = flocks.filter(f => f.isActive).reduce((s, f) => s + (f.initialBirdCount || f.birdCount), 0)
+  const totalLosses = totalInitial - totalBirds
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Bird className="h-4 w-4 text-purple-600" />
+              Bird Population per Farm
+            </CardTitle>
+            <CardDescription className="text-xs mt-1">
+              Add flocks/rooms, track bird counts, and monitor depletion from sales and deaths.
+            </CardDescription>
+          </div>
+          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="h-8 text-xs gap-1">
+                <Plus className="h-3 w-3" /> Add Flock
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Add Bird Flock / Room</DialogTitle>
+                <DialogDescription>Register a new batch of birds at a farm location.</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleAddFlock} className="space-y-3 mt-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Farm *</Label>
+                    <Select value={newFarmId} onValueChange={setNewFarmId}>
+                      <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select farm" /></SelectTrigger>
+                      <SelectContent>
+                        {farms.filter(f => f.isActive).map(f => (
+                          <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Flock / Room Name *</Label>
+                    <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Layer Room A" className="h-9 text-sm" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs">Bird Type</Label>
+                    <Select value={newType} onValueChange={setNewType}>
+                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Layer">Layer</SelectItem>
+                        <SelectItem value="Broiler">Broiler</SelectItem>
+                        <SelectItem value="Cockerel">Cockerel</SelectItem>
+                        <SelectItem value="Turkeys">Turkeys</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Breed</Label>
+                    <Select value={newBreed} onValueChange={setNewBreed}>
+                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Bovan Brown">Bovan Brown</SelectItem>
+                        <SelectItem value="Lohmann Brown">Lohmann Brown</SelectItem>
+                        <SelectItem value="ISA Brown">ISA Brown</SelectItem>
+                        <SelectItem value="Hy-Line Brown">Hy-Line Brown</SelectItem>
+                        <SelectItem value="Cobb 500">Cobb 500</SelectItem>
+                        <SelectItem value="Ross 308">Ross 308</SelectItem>
+                        <SelectItem value="Sasso">Sasso</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Age (weeks)</Label>
+                    <Input type="number" min="0" value={newAge} onChange={e => setNewAge(e.target.value)} placeholder="e.g. 20" className="h-9 text-sm" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Number of Birds *</Label>
+                    <Input type="number" min="1" required value={newCount} onChange={e => setNewCount(e.target.value)} placeholder="e.g. 2500" className="h-9 text-sm" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Arrival Date</Label>
+                    <Input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="h-9 text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs">Notes</Label>
+                  <Input value={newNotes} onChange={e => setNewNotes(e.target.value)} placeholder="Optional notes" className="h-9 text-sm" />
+                </div>
+                <Button type="submit" disabled={saving} className="w-full h-9">
+                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
+                  {saving ? 'Adding...' : 'Add Flock'}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {/* Summary bar */}
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-2.5 text-center">
+            <p className="text-lg font-bold text-purple-700">{totalBirds.toLocaleString()}</p>
+            <p className="text-[10px] text-purple-600">Live Birds (all farms)</p>
+          </div>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-2.5 text-center">
+            <p className="text-lg font-bold text-green-700">{farmsWithFlocks.filter(f => f.flocks.length > 0).length}</p>
+            <p className="text-[10px] text-green-600">Farms with Flocks</p>
+          </div>
+          <div className={`border rounded-lg p-2.5 text-center ${totalLosses > 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
+            <p className={`text-lg font-bold ${totalLosses > 0 ? 'text-red-600' : 'text-gray-500'}`}>{totalLosses > 0 ? `-${totalLosses.toLocaleString()}` : '0'}</p>
+            <p className={`text-[10px] ${totalLosses > 0 ? 'text-red-500' : 'text-gray-400'}`}>Total Depletion (sales + deaths)</p>
+          </div>
+        </div>
+
+        {/* Per-farm flock list */}
+        <ScrollArea className="max-h-96">
+          <div className="space-y-2">
+            {loading ? (
+              <p className="text-sm text-gray-400 text-center py-4">Loading flocks...</p>
+            ) : farmsWithFlocks.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-4">No farms yet. Add a farm location first.</p>
+            ) : (
+              farmsWithFlocks.map(farm => {
+                const farmBirdCount = farm.flocks.reduce((s: number, f: any) => s + f.birdCount, 0)
+                const farmInitial = farm.flocks.reduce((s: number, f: any) => s + (f.initialBirdCount || f.birdCount), 0)
+                const farmLosses = farmInitial - farmBirdCount
+                const isExpanded = expandedFarm === farm.id
+                return (
+                  <div key={farm.id} className="border rounded-lg overflow-hidden">
+                    <button
+                      className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors text-left"
+                      onClick={() => setExpandedFarm(isExpanded ? null : farm.id)}
+                    >
+                      <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center shrink-0">
+                        <Building2 className="h-4 w-4 text-green-700" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm">{farm.name}</p>
+                        <p className="text-[10px] text-gray-500">{farm.location} &middot; {farm.flocks.length} flock{farm.flocks.length !== 1 ? 's' : ''}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-lg font-bold">{farmBirdCount.toLocaleString()}</p>
+                        <p className="text-[10px] text-gray-400">birds</p>
+                      </div>
+                      {farmLosses > 0 && (
+                        <div className="text-right shrink-0">
+                          <p className="text-xs font-medium text-red-600">-{farmLosses}</p>
+                          <p className="text-[10px] text-red-400">depleted</p>
+                        </div>
+                      )}
+                      {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                    </button>
+
+                    {isExpanded && (
+                      <div className="border-t bg-gray-50/50 p-3 space-y-2">
+                        {farm.flocks.length === 0 ? (
+                          <p className="text-xs text-gray-400 text-center py-2">No flocks at this farm yet.</p>
+                        ) : (
+                          farm.flocks.map((flock: any) => (
+                            <div key={flock.id} className="bg-white border rounded-lg p-3">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${flock.birdType === 'Layer' ? 'bg-amber-100' : 'bg-blue-100'}`}>
+                                  <Bird className={`h-4 w-4 ${flock.birdType === 'Layer' ? 'text-amber-700' : 'text-blue-700'}`} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-semibold text-sm">{flock.name}</p>
+                                    <Badge variant={flock.birdType === 'Layer' ? 'default' : 'secondary'} className="text-[10px]">
+                                      {flock.birdType}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-[10px] text-gray-500">
+                                    {flock.breed || flock.birdType} &middot; Age: {flock.currentAgeWeeks} weeks
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-base font-bold">{flock.birdCount.toLocaleString()}</p>
+                                  <p className="text-[10px] text-gray-400">of {flock.initialBirdCount?.toLocaleString()}</p>
+                                </div>
+                                {flock.losses > 0 && (
+                                  <div className="text-right">
+                                    <p className="text-xs font-medium text-red-600">-{flock.losses}</p>
+                                    <p className="text-[10px] text-red-400">({flock.lossPercent}%)</p>
+                                  </div>
+                                )}
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 shrink-0"
+                                  onClick={() => handleDeactivateFlock(flock.id, flock.name)}>
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </ScrollArea>
+
+        <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-2.5">
+          <p className="text-[11px] text-blue-800">
+            <Bird className="h-3 w-3 inline mr-1" />
+            Bird counts auto-decrease when mortality or bird sales are recorded. Depletion = initial count minus current live count.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 // ============ FULL DATA RESET ============
 function FullDataReset() {
   const { currentUser } = useAppStore()
@@ -517,6 +832,7 @@ export function CEOSettingsPanel() {
 
       <FarmNameEditor />
       <FarmLocationsManager />
+      <BirdFlockManager />
 
       {/* DANGER ZONE separator — visually distinct from the operational settings above */}
       <div className="flex items-center gap-2 pt-4 px-1">

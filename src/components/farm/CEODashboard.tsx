@@ -28,8 +28,13 @@ const COLORS = ['#16a34a', '#ea580c', '#2563eb', '#9333ea', '#e11d48', '#ca8a04'
 interface DashboardData {
   totalFarms: number
   totalBirds: number
+  totalLayerBirds: number
   totalFlocks: number
-  today: { eggCrates: number; totalEggs: number }
+  totalDepletion: number
+  flockDetails: any[]
+  todayLayRate: number
+  monthLayRate: number
+  today: { eggCrates: number; totalEggs: number; layRate: number }
   thisWeek: { eggCrates: number; mortality: number }
   thisMonth: {
     eggCrates: number; eggsSold: number; eggRevenue: number; birdsSold: number; birdRevenue: number
@@ -478,7 +483,39 @@ export function CEODashboard() {
         </Card>
       </div>
 
-      {/* Secondary KPIs */}
+      {/* Secondary KPIs — Lay Rate + Depletion + Population */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-gray-500 mb-1">Today&apos;s Lay Rate</p>
+            <p className="text-xl font-bold text-amber-700">{data.todayLayRate}%</p>
+            <p className="text-[10px] text-gray-400">{data.today.totalEggs} eggs / {data.totalLayerBirds.toLocaleString()} layers</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-gray-500 mb-1">Monthly Avg Lay Rate</p>
+            <p className={`text-xl font-bold ${data.monthLayRate >= 70 ? 'text-green-600' : data.monthLayRate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>{data.monthLayRate}%</p>
+            <p className="text-[10px] text-gray-400">avg daily eggs per layer bird</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-gray-500 mb-1">Total Population</p>
+            <p className="text-xl font-bold text-purple-700">{data.totalBirds.toLocaleString()}</p>
+            <p className="text-[10px] text-gray-400">{data.totalLayerBirds.toLocaleString()} layers, {data.totalFlocks} flocks</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-gray-500 mb-1">Population Depletion</p>
+            <p className={`text-xl font-bold ${data.totalDepletion > 5 ? 'text-red-600' : data.totalDepletion > 2 ? 'text-amber-600' : 'text-gray-700'}`}>{data.totalDepletion}%</p>
+            <p className="text-[10px] text-gray-400">total loss from sales + deaths</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tertiary KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <Card>
           <CardContent className="p-4">
@@ -595,10 +632,14 @@ export function CEODashboard() {
                           {formatGHS(farm.monthProfit)}
                         </Badge>
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
                         <div>
                           <p className="text-gray-500">Birds</p>
                           <p className="font-medium">{farm.birdCount.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Lay Rate</p>
+                          <p className={`font-medium ${farm.todayLayRate >= 70 ? 'text-green-600' : farm.todayLayRate >= 50 ? 'text-amber-600' : 'text-gray-600'}`}>{farm.todayLayRate}%</p>
                         </div>
                         <div>
                           <p className="text-gray-500">Egg Crates</p>
@@ -613,6 +654,29 @@ export function CEODashboard() {
                           <p className="font-medium text-red-600">{formatGHS(farm.monthExpenses)}</p>
                         </div>
                       </div>
+                      {/* Per-flock breakdown */}
+                      {farm.flockDetails && farm.flockDetails.length > 0 && (
+                        <div className="mt-3 pt-3 border-t">
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Flocks</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                            {farm.flockDetails.map((fl: any) => (
+                              <div key={fl.id} className="flex items-center gap-2 bg-gray-50 rounded p-2 text-xs">
+                                <Bird className={`h-3.5 w-3.5 shrink-0 ${fl.birdType === 'Layer' ? 'text-amber-600' : 'text-blue-600'}`} />
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium truncate">{fl.name}</p>
+                                  <p className="text-[10px] text-gray-400">{fl.breed || fl.birdType} &middot; {fl.currentAgeWeeks}wks</p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <p className="font-semibold">{fl.birdCount.toLocaleString()}</p>
+                                  {fl.losses > 0 && (
+                                    <p className="text-[10px] text-red-500">-{fl.losses} ({fl.lossPercent}%)</p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

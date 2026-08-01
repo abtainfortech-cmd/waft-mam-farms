@@ -108,6 +108,48 @@ export async function GET() {
       return d > now && d <= twoWeeks && v.status !== 'Completed'
     })
 
+    // Lay rate calculation: (eggs collected today / total layer birds) * 100
+    const layerFlocks = allFlocks.filter(f => f.birdType === 'Layer' && f.birdCount > 0)
+    const totalLayerBirds = layerFlocks.reduce((s, f) => s + f.birdCount, 0)
+    const todayLayRate = totalLayerBirds > 0 ? Math.round((todayEggs / totalLayerBirds) * 10000) / 100 : 0
+
+    // Monthly lay rate: average daily eggs / layer birds
+    const daysInMonth = Math.max(1, Math.ceil((now.getTime() - monthAgo.getTime()) / (24 * 60 * 60 * 1000)))
+    const monthTotalEggs = eggsMonth.reduce((s, e) => s + (e.crateCount * e.eggsPerCrate), 0)
+    const monthAvgDailyEggs = monthTotalEggs / daysInMonth
+    const monthLayRate = totalLayerBirds > 0 ? Math.round((monthAvgDailyEggs / totalLayerBirds) * 10000) / 100 : 0
+
+    // Flock-level detail for CEO: population, depletion, age
+    const flockDetails = allFlocks.map(f => {
+      const ageMs = now.getTime() - new Date(f.dateArrival).getTime()
+      const currentAgeWeeks = Math.max(0, Math.floor(ageMs / (7 * 86400000)))
+      const losses = (f.initialBirdCount || f.birdCount) - f.birdCount
+      const lossPercent = (f.initialBirdCount || f.birdCount) > 0
+        ? Math.round((losses / (f.initialBirdCount || f.birdCount)) * 10000) / 100
+        : 0
+      return {
+        id: f.id,
+        name: f.name,
+        farmId: f.farmId,
+        farmName: farms.find(fm => fm.id === f.farmId)?.name || 'Unknown',
+        birdType: f.birdType,
+        breed: f.breed,
+        birdCount: f.birdCount,
+        initialBirdCount: f.initialBirdCount || f.birdCount,
+        currentAgeWeeks,
+        losses: Math.max(0, losses),
+        lossPercent,
+        dateArrival: f.dateArrival,
+        isActive: f.isActive,
+      }
+    })
+
+    // Total population depletion across all flocks
+    const totalInitialBirds = allFlocks.reduce((s, f) => s + (f.initialBirdCount || f.birdCount), 0)
+    const totalDepletion = totalInitialBirds > 0
+      ? Math.round(((totalInitialBirds - totalBirds) / totalInitialBirds) * 10000) / 100
+      : 0
+
     // Per-farm breakdown
     const farmBreakdown = await Promise.all(farms.map(async (farm) => {
       const farmEggCollections = await db.dailyEggCollection.findMany({
@@ -118,12 +160,35 @@ export async function GET() {
       const farmExpenses = await db.expense.findMany({ where: { farmId: farm.id, date: { gte: monthAgo } } })
       const farmMortality = await db.birdMortality.findMany({ where: { farmId: farm.id, date: { gte: monthAgo } } })
 
+      // Per-farm lay rate
+      const farmLayerBirds = farm.flocks.filter(f => f.birdType === 'Layer').reduce((s, f) => s + f.birdCount, 0)
+      const farmTodayEggs = farmEggCollections
+        .filter(e => { const d = new Date(e.date); return d >= today })
+        .reduce((s, e) => s + (e.crateCount * e.eggsPerCrate), 0)
+      const farmLayRate = farmLayerBirds > 0 ? Math.round((farmTodayEggs / farmLayerBirds) * 10000) / 100 : 0
+
+      // Per-farm flock detail
+      const farmFlockDetails = farm.flocks.map(f => {
+        const ageMs = now.getTime() - new Date(f.dateArrival).getTime()
+        const currentAgeWeeks = Math.max(0, Math.floor(ageMs / (7 * 86400000)))
+        const losses = (f.initialBirdCount || f.birdCount) - f.birdCount
+        return {
+          id: f.id, name: f.name, birdType: f.birdType, breed: f.breed,
+          birdCount: f.birdCount, initialBirdCount: f.initialBirdCount || f.birdCount,
+          currentAgeWeeks, losses: Math.max(0, losses),
+          lossPercent: (f.initialBirdCount || f.birdCount) > 0
+            ? Math.round((losses / (f.initialBirdCount || f.birdCount)) * 10000) / 100 : 0,
+        }
+      })
+
       return {
         farmId: farm.id,
         farmName: farm.name,
         location: farm.location,
         birdCount: farm.flocks.reduce((s, f) => s + f.birdCount, 0),
         flocks: farm.flocks.length,
+        flockDetails: farmFlockDetails,
+        todayLayRate: farmLayRate,
         monthEggCrates: farmEggCollections.reduce((s, e) => s + e.crateCount, 0),
         monthEggRevenue: farmEggSales.reduce((s, e) => s + e.totalAmount, 0),
         monthBirdRevenue: farmBirdSales.reduce((s, e) => s + e.totalAmount, 0),
@@ -138,10 +203,16 @@ export async function GET() {
     return NextResponse.json({
       totalFarms,
       totalBirds,
+      totalLayerBirds,
       totalFlocks: allFlocks.length,
+      totalDepletion,
+      flockDetails,
+      todayLayRate,
+      monthLayRate,
       today: {
         eggCrates: todayEggCrates,
         totalEggs: todayEggs,
+        layRate: todayLayRate,
       },
       thisWeek: {
         eggCrates: weekEggCrates,
