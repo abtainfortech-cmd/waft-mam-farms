@@ -13,6 +13,37 @@ export async function GET(request: NextRequest) {
     })
     // Compute current age from dateArrival
     const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+    // Fetch egg collections for lay rate calculation
+    const eggCollections = await db.dailyEggCollection.findMany({
+      where: { date: { gte: monthAgo } },
+    })
+
+    // Group eggs by farmId and by day
+    const eggsByFarmToday: Record<string, number> = {}
+    const eggsByFarmMonth: Record<string, number> = {}
+    for (const ec of eggCollections) {
+      const totalEggs = ec.crateCount * ec.eggsPerCrate
+      const d = new Date(ec.date)
+      if (d >= today) {
+        eggsByFarmToday[ec.farmId] = (eggsByFarmToday[ec.farmId] || 0) + totalEggs
+      }
+      eggsByFarmMonth[ec.farmId] = (eggsByFarmMonth[ec.farmId] || 0) + totalEggs
+    }
+
+    // Per-farm layer bird counts
+    const farmLayerCounts: Record<string, number> = {}
+    for (const f of flocks) {
+      if (f.birdType === 'Layer' && f.birdCount > 0) {
+        farmLayerCounts[f.farmId] = (farmLayerCounts[f.farmId] || 0) + f.birdCount
+      }
+    }
+
+    // Days in current period for monthly avg
+    const daysInPeriod = Math.max(1, Math.ceil((now.getTime() - monthAgo.getTime()) / (24 * 60 * 60 * 1000)))
+
     const enriched = flocks.map(f => {
       const ageMs = now.getTime() - new Date(f.dateArrival).getTime()
       const currentAgeWeeks = Math.max(0, Math.floor(ageMs / (7 * 86400000)))
@@ -26,7 +57,23 @@ export async function GET(request: NextRequest) {
           : 0,
       }
     })
-    return NextResponse.json(enriched)
+
+    // Compute per-farm lay rates
+    const farmLayRates: Record<string, { todayLayRate: number; monthLayRate: number; todayEggs: number; monthAvgDailyEggs: number }> = {}
+    for (const fid of Object.keys(farmLayerCounts)) {
+      const layerBirds = farmLayerCounts[fid]
+      const todayEggs = eggsByFarmToday[fid] || 0
+      const monthTotalEggs = eggsByFarmMonth[fid] || 0
+      const monthAvg = monthTotalEggs / daysInPeriod
+      farmLayRates[fid] = {
+        todayLayRate: layerBirds > 0 ? Math.round((todayEggs / layerBirds) * 10000) / 100 : 0,
+        monthLayRate: layerBirds > 0 ? Math.round((monthAvg / layerBirds) * 10000) / 100 : 0,
+        todayEggs,
+        monthAvgDailyEggs: Math.round(monthAvg),
+      }
+    }
+
+    return NextResponse.json({ flocks: enriched, farmLayRates })
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch flocks' }, { status: 500 })
   }

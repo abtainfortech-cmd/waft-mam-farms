@@ -418,6 +418,7 @@ function FarmLocationsManager() {
 function BirdFlockManager() {
   const [farms, setFarms] = useState<FarmInfo[]>([])
   const [flocks, setFlocks] = useState<any[]>([])
+  const [farmLayRates, setFarmLayRates] = useState<Record<string, { todayLayRate: number; monthLayRate: number; todayEggs: number; monthAvgDailyEggs: number }>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [expandedFarm, setExpandedFarm] = useState<string | null>(null)
@@ -441,7 +442,16 @@ function BirdFlockManager() {
         fetch('/api/flocks'),
       ])
       if (farmsRes.ok) setFarms(await farmsRes.json())
-      if (flocksRes.ok) setFlocks(await flocksRes.json())
+      if (flocksRes.ok) {
+        const flocksData = await flocksRes.json()
+        // API now returns { flocks, farmLayRates }
+        if (Array.isArray(flocksData)) {
+          setFlocks(flocksData)
+        } else {
+          setFlocks(flocksData.flocks || [])
+          setFarmLayRates(flocksData.farmLayRates || {})
+        }
+      }
     } catch {} finally {
       setLoading(false)
     }
@@ -653,6 +663,22 @@ function BirdFlockManager() {
                         <p className="font-semibold text-sm">{farm.name}</p>
                         <p className="text-[10px] text-gray-500">{farm.location} &middot; {farm.flocks.length} flock{farm.flocks.length !== 1 ? 's' : ''}</p>
                       </div>
+                      {farmLayRates[farm.id] && (
+                        <div className="text-center shrink-0 px-1.5">
+                          <p className={`text-sm font-bold ${farmLayRates[farm.id].todayLayRate >= 70 ? 'text-green-600' : farmLayRates[farm.id].todayLayRate >= 50 ? 'text-amber-600' : 'text-gray-500'}`}>
+                            {farmLayRates[farm.id].todayLayRate}%
+                          </p>
+                          <p className="text-[10px] text-gray-400">lay today</p>
+                        </div>
+                      )}
+                      {farmLayRates[farm.id] && (
+                        <div className="text-center shrink-0 px-1.5">
+                          <p className={`text-sm font-bold ${farmLayRates[farm.id].monthLayRate >= 70 ? 'text-green-600' : farmLayRates[farm.id].monthLayRate >= 50 ? 'text-amber-600' : 'text-gray-500'}`}>
+                            {farmLayRates[farm.id].monthLayRate}%
+                          </p>
+                          <p className="text-[10px] text-gray-400">avg month</p>
+                        </div>
+                      )}
                       <div className="text-right shrink-0">
                         <p className="text-lg font-bold">{farmBirdCount.toLocaleString()}</p>
                         <p className="text-[10px] text-gray-400">birds</p>
@@ -718,7 +744,7 @@ function BirdFlockManager() {
         <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-2.5">
           <p className="text-[11px] text-blue-800">
             <Bird className="h-3 w-3 inline mr-1" />
-            Bird counts auto-decrease when mortality or bird sales are recorded. Depletion = initial count minus current live count.
+            Bird counts auto-decrease when mortality or bird sales are recorded. Depletion = initial count minus current live count. Lay % = (eggs collected / layer birds) x 100.
           </p>
         </div>
       </CardContent>

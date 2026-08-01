@@ -97,7 +97,10 @@ export function FarmHandDashboard() {
         fetch(`/api/feed${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`),
       ])
       if (farmsRes.ok) setFarms(await farmsRes.json())
-      if (flocksRes.ok) setFlocks(await flocksRes.json())
+      if (flocksRes.ok) {
+        const fd = await flocksRes.json()
+        setFlocks(Array.isArray(fd) ? fd : (fd.flocks || []))
+      }
       if (eggsRes.ok) setEggRecords(await eggsRes.json())
       if (mortRes.ok) setMortRecords(await mortRes.json())
       if (feedRes.ok) setFeedRecords(await feedRes.json())
@@ -111,7 +114,8 @@ export function FarmHandDashboard() {
   const handleAutoData = useCallback((results: any[]) => {
     if (results && results.length >= 5 && !isSubmittingRef.current) {
       setFarms(results[0] || [])
-      setFlocks(results[1] || [])
+      const flData = results[1]
+      setFlocks(Array.isArray(flData) ? flData : (flData?.flocks || []))
       setEggRecords(results[2] || [])
       setMortRecords(results[3] || [])
       setFeedRecords(results[4] || [])

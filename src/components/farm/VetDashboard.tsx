@@ -87,7 +87,10 @@ export function VetDashboard() {
         fetch(`/api/health${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`),
       ])
       if (farmsRes.ok) setFarms(await farmsRes.json())
-      if (flocksRes.ok) setAllFlocks(await flocksRes.json())
+      if (flocksRes.ok) {
+        const fd = await flocksRes.json()
+        setAllFlocks(Array.isArray(fd) ? fd : (fd.flocks || []))
+      }
       if (vacRes.ok) setVaccinations(await vacRes.json())
       if (treatRes.ok) setTreatments(await treatRes.json())
       if (healthRes.ok) setHealthChecks(await healthRes.json())
@@ -101,7 +104,7 @@ export function VetDashboard() {
   const handleAutoData = useCallback((results: any[]) => {
     if (results && results.length >= 5) {
       setFarms(results[0] || [])
-      setAllFlocks(results[1] || [])
+      setAllFlocks(Array.isArray(results[1]) ? results[1] : (results[1]?.flocks || []))
       setVaccinations(results[2] || [])
       setTreatments(results[3] || [])
       setHealthChecks(results[4] || [])
