@@ -79,7 +79,10 @@ export function SalesDashboard() {
     if (!farmId) { setBirdFlocks([]); return }
     try {
       const res = await fetch(`/api/flocks?farmId=${farmId}`)
-      if (res.ok) setBirdFlocks(await res.json())
+      if (res.ok) {
+        const fd = await res.json()
+        setBirdFlocks(Array.isArray(fd) ? fd : (fd.flocks || []))
+      }
     } catch {}
   }, [])
 
@@ -414,12 +417,9 @@ export function SalesDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
-                </div>
                 <div>
                   <Label className="text-xs">Flock (optional)</Label>
-                  <Select value={birdSaleFlockId || 'none' onValueChange={(v) => setBirdSaleFlockId(v === 'none
-' ? '
-' : v)}>
+                  <Select value={birdSaleFlockId || 'none'} onValueChange={(v) => setBirdSaleFlockId(v === 'none' ? '' : v)}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select flock" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">None / Walk-in</SelectItem>
@@ -429,6 +429,7 @@ export function SalesDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div>
                   <Label className="text-xs">Date</Label>
                   <Input type="date" value={birdSaleDate} onChange={e => setBirdSaleDate(e.target.value)} className="h-9 text-sm" />
                 </div>

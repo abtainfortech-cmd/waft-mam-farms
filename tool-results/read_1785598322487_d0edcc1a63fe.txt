@@ -1,0 +1,626 @@
+     1→'use client'
+     2→
+     3→import { useEffect, useState, useCallback } from 'react'
+     4→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+     5→import { Badge } from '@/components/ui/badge'
+     6→import { Button } from '@/components/ui/button'
+     7→import { Input } from '@/components/ui/input'
+     8→import { Label } from '@/components/ui/label'
+     9→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    10→import { Textarea } from '@/components/ui/textarea'
+    11→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    12→import { ScrollArea } from '@/components/ui/scroll-area'
+    13→import { Separator } from '@/components/ui/separator'
+    14→import { Skeleton } from '@/components/ui/skeleton'
+    15→import { useAppStore } from '@/store/app'
+    16→import { toast } from 'sonner'
+    17→import { LiveSyncIndicator } from '@/components/farm/LiveSyncIndicator'
+    18→import {
+    19→  ShoppingBasket, Plus, Bird, DollarSign, Users, AlertCircle, CheckCircle, CreditCard, Package, Pencil
+    20→} from 'lucide-react'
+    21→import { AmendmentRequestDialog } from '@/components/farm/AmendmentRequestDialog'
+    22→
+    23→interface Farm { id: string; name: string }
+    24→interface Customer { id: string; name: string; phone: string; location: string; customerType: string }
+    25→interface EggSale { id: string; date: string; crateCount: number; eggsPerCrate: number; pricePerCrate: number; totalAmount: number; paymentStatus: string; amountPaid: number; customer: { name: string } | null }
+    26→interface BirdSale { id: string; date: string; quantity: number; pricePerBird: number; totalAmount: number; paymentStatus: string; amountPaid: number; customer: { name: string } | null }
+    27→
+    28→function formatGHS(n: number) { return `GHS ${n.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }
+    29→
+    30→export function SalesDashboard() {
+    31→  const { selectedFarmId, setFarm, currentUser } = useAppStore()
+    32→  const [farms, setFarms] = useState<Farm[]>([])
+    33→  const [customers, setCustomers] = useState<Customer[]>([])
+    34→  const [eggSales, setEggSales] = useState<EggSale[]>([])
+    35→  const [birdSales, setBirdSales] = useState<BirdSale[]>([])
+    36→  const [loading, setLoading] = useState(true)
+    37→  const [amendmentOpen, setAmendmentOpen] = useState(false)
+    38→  const [amendmentTarget, setAmendmentTarget] = useState<{ recordType: string; recordId: string; fields: any[] }>({ recordType: '', recordId: '', fields: [] })
+    39→
+    40→  const today = new Date().toISOString().split('T')[0]
+    41→
+    42→  // Form Select state (Radix Select doesn't use native form elements)
+    43→  const [eggSaleCustomerId, setEggSaleCustomerId] = useState('')
+    44→  const [eggSaleFarmId, setEggSaleFarmId] = useState(selectedFarmId || '')
+    45→  const [eggSalePayment, setEggSalePayment] = useState('Paid')
+    46→  const [eggAmountPaid, setEggAmountPaid] = useState('')
+    47→  const [birdSaleCustomerId, setBirdSaleCustomerId] = useState('')
+    48→  const [birdSaleFarmId, setBirdSaleFarmId] = useState(selectedFarmId || '')
+    49→  const [birdSaleFlockId, setBirdSaleFlockId] = useState('')
+    50→  const [birdSalePayment, setBirdSalePayment] = useState('Paid')
+    51→  const [birdAmountPaid, setBirdAmountPaid] = useState('')
+    52→  const [customerType, setCustomerType] = useState('Retail')
+    53→
+    54→  // Controlled numerical input state for egg sale form
+    55→  const [eggCrateCount, setEggCrateCount] = useState('')
+    56→  const [eggPricePerCrate, setEggPricePerCrate] = useState('')
+    57→  const [eggSaleDate, setEggSaleDate] = useState(today)
+    58→
+    59→  // Controlled numerical input state for bird sale form
+    60→  const [birdQuantity, setBirdQuantity] = useState('')
+    61→  const [birdPricePerBird, setBirdPricePerBird] = useState('')
+    62→  const [birdWeightPerBird, setBirdWeightPerBird] = useState('')
+    63→  const [birdSaleDate, setBirdSaleDate] = useState(today)
+    64→  const [birdFlocks, setBirdFlocks] = useState<{ id: string; name: string; birdType: string; birdCount: number }[]>([])
+    65→
+    66→  // Controlled input state for customer form
+    67→  const [custName, setCustName] = useState('')
+    68→  const [custPhone, setCustPhone] = useState('')
+    69→  const [custLocation, setCustLocation] = useState('')
+    70→
+    71→  useEffect(() => {
+    72→    if (selectedFarmId) {
+    73→      setEggSaleFarmId(selectedFarmId)
+    74→      setBirdSaleFarmId(selectedFarmId)
+    75→    }
+    76→  }, [selectedFarmId])
+    77→
+    78→  const fetchBirdFlocks = useCallback(async (farmId?: string) => {
+    79→    if (!farmId) { setBirdFlocks([]); return }
+    80→    try {
+    81→      const res = await fetch(`/api/flocks?farmId=${farmId}`)
+    82→      if (res.ok) setBirdFlocks(await res.json())
+    83→    } catch {}
+    84→  }, [])
+    85→
+    86→  useEffect(() => { if (birdSaleFarmId) fetchBirdFlocks(birdSaleFarmId) }, [birdSaleFarmId, fetchBirdFlocks])
+    87→
+    88→  const fetchData = useCallback(async () => {
+    89→    setLoading(true)
+    90→    try {
+    91→      const [farmsRes, custRes, eggsRes, birdsRes] = await Promise.all([
+    92→        fetch('/api/farms'), fetch('/api/customers'),
+    93→        fetch(`/api/sales/eggs${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`),
+    94→        fetch(`/api/sales/birds${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`),
+    95→      ])
+    96→      if (farmsRes.ok) setFarms(await farmsRes.json())
+    97→      if (custRes.ok) setCustomers(await custRes.json())
+    98→      if (eggsRes.ok) setEggSales(await eggsRes.json())
+    99→      if (birdsRes.ok) setBirdSales(await birdsRes.json())
+   100→    } catch (e) { console.error(e) }
+   101→    finally { setLoading(false) }
+   102→  }, [selectedFarmId])
+   103→
+   104→  useEffect(() => { fetchData() }, [fetchData])
+   105→
+   106→  // Auto-refresh: Sales sees new records from farm hand, accountant etc.
+   107→  const handleAutoData = useCallback((results: any[]) => {
+   108→    if (results && results.length >= 4) {
+   109→      setFarms(results[0] || [])
+   110→      setCustomers(results[1] || [])
+   111→      setEggSales(results[2] || [])
+   112→      setBirdSales(results[3] || [])
+   113→    }
+   114→  }, [])
+   115→
+   116→  const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
+   117→  const monthEggSales = eggSales.filter(e => new Date(e.date).toISOString().split('T')[0] >= monthAgo)
+   118→  const monthBirdSales = birdSales.filter(e => new Date(e.date).toISOString().split('T')[0] >= monthAgo)
+   119→  const totalEggRev = monthEggSales.reduce((s, e) => s + e.totalAmount, 0)
+   120→  const totalBirdRev = monthBirdSales.reduce((s, e) => s + e.totalAmount, 0)
+   121→  const unpaidEgg = monthEggSales.filter(e => e.paymentStatus !== 'Paid').reduce((s, e) => s + (e.totalAmount - e.amountPaid), 0)
+   122→  const unpaidBird = monthBirdSales.filter(e => e.paymentStatus !== 'Paid').reduce((s, e) => s + (e.totalAmount - e.amountPaid), 0)
+   123→
+   124→  const submitEggSale = async (e: React.FormEvent<HTMLFormElement>) => {
+   125→    e.preventDefault()
+   126→    try {
+   127→      const crates = Number(eggCrateCount)
+   128→      const price = Number(eggPricePerCrate)
+   129→      if (!crates || crates <= 0) { toast.error('Please enter a valid crate count'); return }
+   130→      if (!price || price <= 0) { toast.error('Please enter a valid price per crate'); return }
+   131→      if (!eggSaleFarmId) { toast.error('Please select a farm'); return }
+   132→      const data = {
+   133→        customerId: eggSaleCustomerId || null,
+   134→        date: eggSaleDate || today,
+   135→        crateCount: crates,
+   136→        eggsPerCrate: 30,
+   137→        pricePerCrate: price,
+   138→        totalAmount: crates * price,
+   139→        paymentStatus: eggSalePayment,
+   140→        amountPaid: eggSalePayment === 'Paid' ? crates * price : eggSalePayment === 'Partial' ? (Number(eggAmountPaid) || 0) : 0,
+   141→        farmId: eggSaleFarmId,
+   142→        recordedBy: currentUser?.name || 'Sales',
+   143→      }
+   144→      const res = await fetch('/api/sales/eggs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+   145→      if (res.ok) {
+   146→        toast.success('Egg sale recorded!')
+   147→        setEggCrateCount(''); setEggPricePerCrate(''); setEggAmountPaid('')
+   148→        setEggSaleCustomerId(''); setEggSalePayment('Paid')
+   149→        fetchData()
+   150→      } else {
+   151→        const err = await res.json().catch(() => ({}))
+   152→        toast.error(err.error || 'Failed to record sale')
+   153→      }
+   154→    } catch (err) { console.error(err); toast.error('Failed to record sale') }
+   155→  }
+   156→
+   157→  const submitBirdSale = async (e: React.FormEvent<HTMLFormElement>) => {
+   158→    e.preventDefault()
+   159→    try {
+   160→      const qty = Number(birdQuantity)
+   161→      const price = Number(birdPricePerBird)
+   162→      if (!qty || qty <= 0) { toast.error('Please enter a valid quantity'); return }
+   163→      if (!price || price <= 0) { toast.error('Please enter a valid price per bird'); return }
+   164→      if (!birdSaleFarmId) { toast.error('Please select a farm'); return }
+   165→      const data = {
+   166→        customerId: birdSaleCustomerId || null,
+   167→        date: birdSaleDate || today,
+   168→        quantity: qty,
+   169→        weightPerBirdKg: birdWeightPerBird ? Number(birdWeightPerBird) : null,
+   170→        pricePerBird: price,
+   171→        totalAmount: qty * price,
+   172→        paymentStatus: birdSalePayment,
+   173→        amountPaid: birdSalePayment === 'Paid' ? qty * price : birdSalePayment === 'Partial' ? (Number(birdAmountPaid) || 0) : 0,
+   174→        farmId: birdSaleFarmId,
+   175→        flockId: birdSaleFlockId || null,
+   176→        recordedBy: currentUser?.name || 'Sales',
+   177→      }
+   178→      const res = await fetch('/api/sales/birds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+   179→      if (res.ok) {
+   180→        toast.success('Bird sale recorded!')
+   181→        setBirdQuantity(''); setBirdPricePerBird(''); setBirdWeightPerBird(''); setBirdAmountPaid('')
+   182→        setBirdSaleCustomerId(''); setBirdSalePayment('Paid')
+   183→        fetchData()
+   184→      } else {
+   185→        const err = await res.json().catch(() => ({}))
+   186→        toast.error(err.error || 'Failed to record sale')
+   187→      }
+   188→    } catch (err) { console.error(err); toast.error('Failed to record sale') }
+   189→  }
+   190→
+   191→  const openAmendmentDialog = (recordType: string, recordId: string, fields: any[]) => {
+   192→    setAmendmentTarget({ recordType, recordId, fields })
+   193→    setAmendmentOpen(true)
+   194→  }
+   195→
+   196→  const addCustomer = async (e: React.FormEvent<HTMLFormElement>) => {
+   197→    e.preventDefault()
+   198→    try {
+   199→      const data = {
+   200→        name: custName.trim(),
+   201→        phone: custPhone.trim() || null,
+   202→        location: custLocation.trim() || null,
+   203→        customerType: customerType,
+   204→      }
+   205→      if (!data.name) { toast.error('Please enter customer name'); return }
+   206→      const res = await fetch('/api/customers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+   207→      if (res.ok) {
+   208→        toast.success('Customer added!')
+   209→        setCustName(''); setCustPhone(''); setCustLocation('')
+   210→        fetchData()
+   211→      } else {
+   212→        const err = await res.json().catch(() => ({}))
+   213→        toast.error(err.error || 'Failed to add customer')
+   214→      }
+   215→    } catch (err) { console.error(err); toast.error('Failed to add customer') }
+   216→  }
+   217→
+   218→  return (
+   219→    <div className="space-y-4 md:space-y-6">
+   220→      {/* Stats */}
+   221→      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+   222→        <Card>
+   223→          <CardContent className="p-4">
+   224→            <div className="flex items-center gap-2 mb-1">
+   225→              <ShoppingBasket className="h-4 w-4 text-green-600" />
+   226→              <span className="text-xs text-gray-500">Egg Sales (Month)</span>
+   227→            </div>
+   228→            <p className="text-xl font-bold text-green-700">{formatGHS(totalEggRev)}</p>
+   229→            <p className="text-xs text-gray-500">{monthEggSales.length} transactions</p>
+   230→          </CardContent>
+   231→        </Card>
+   232→        <Card>
+   233→          <CardContent className="p-4">
+   234→            <div className="flex items-center gap-2 mb-1">
+   235→              <Bird className="h-4 w-4 text-blue-600" />
+   236→              <span className="text-xs text-gray-500">Bird Sales (Month)</span>
+   237→            </div>
+   238→            <p className="text-xl font-bold text-blue-700">{formatGHS(totalBirdRev)}</p>
+   239→            <p className="text-xs text-gray-500">{monthBirdSales.length} transactions</p>
+   240→          </CardContent>
+   241→        </Card>
+   242→        <Card>
+   243→          <CardContent className="p-4">
+   244→            <div className="flex items-center gap-2 mb-1">
+   245→              <DollarSign className="h-4 w-4 text-amber-600" />
+   246→              <span className="text-xs text-gray-500">Total Revenue</span>
+   247→            </div>
+   248→            <p className="text-xl font-bold">{formatGHS(totalEggRev + totalBirdRev)}</p>
+   249→          </CardContent>
+   250→        </Card>
+   251→        <Card>
+   252→          <CardContent className="p-4">
+   253→            <div className="flex items-center gap-2 mb-1">
+   254→              <CreditCard className="h-4 w-4 text-red-600" />
+   255→              <span className="text-xs text-gray-500">Outstanding</span>
+   256→            </div>
+   257→            <p className="text-xl font-bold text-red-600">{formatGHS(unpaidEgg + unpaidBird)}</p>
+   258→          </CardContent>
+   259→        </Card>
+   260→      </div>
+   261→
+   262→      {/* Farm Filter */}
+   263→      <div className="flex items-center gap-2">
+   264→        <Label className="text-xs text-gray-500">Farm:</Label>
+   265→        <Select value={selectedFarmId || 'all'} onValueChange={(v) => setFarm(v === 'all' ? null : v)}>
+   266→          <SelectTrigger className="w-48 h-8 text-xs"><SelectValue placeholder="All Farms" /></SelectTrigger>
+   267→          <SelectContent>
+   268→            <SelectItem value="all">All Farms</SelectItem>
+   269→            {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+   270→          </SelectContent>
+   271→        </Select>
+   272→      </div>
+   273→
+   274→      <LiveSyncIndicator
+   275→        endpoints={['/api/farms', '/api/customers', `/api/sales/eggs${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/sales/birds${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`]}
+   276→        interval={20000}
+   277→        onData={handleAutoData}
+   278→        compact
+   279→      />
+   280→
+   281→      <Tabs defaultValue="egg-sales" className="w-full">
+   282→        <TabsList className="grid grid-cols-4 w-full">
+   283→          <TabsTrigger value="egg-sales"><ShoppingBasket className="h-3 w-3 mr-1" />Egg Sales</TabsTrigger>
+   284→          <TabsTrigger value="bird-sales"><Bird className="h-3 w-3 mr-1" />Bird Sales</TabsTrigger>
+   285→          <TabsTrigger value="customers"><Users className="h-3 w-3 mr-1" />Customers</TabsTrigger>
+   286→          <TabsTrigger value="unpaid"><AlertCircle className="h-3 w-3 mr-1" />Unpaid</TabsTrigger>
+   287→        </TabsList>
+   288→
+   289→        <TabsContent value="egg-sales">
+   290→          <Card>
+   291→            <CardHeader className="pb-2">
+   292→              <CardTitle className="text-base">Record Egg Sale</CardTitle>
+   293→            </CardHeader>
+   294→            <CardContent>
+   295→              <form onSubmit={submitEggSale} className="grid grid-cols-2 md:grid-cols-3 gap-3">
+   296→                <div>
+   297→                  <Label className="text-xs">Customer</Label>
+   298→                  <Select value={eggSaleCustomerId} onValueChange={setEggSaleCustomerId}>
+   299→                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Walk-in" /></SelectTrigger>
+   300→                    <SelectContent>
+   301→                      {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+   302→                    </SelectContent>
+   303→                  </Select>
+   304→                </div>
+   305→                <div>
+   306→                  <Label className="text-xs">Farm *</Label>
+   307→                  <Select value={eggSaleFarmId} onValueChange={setEggSaleFarmId}>
+   308→                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select farm" /></SelectTrigger>
+   309→                    <SelectContent>
+   310→                      {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+   311→                    </SelectContent>
+   312→                  </Select>
+   313→                </div>
+   314→                <div>
+   315→                  <Label className="text-xs">Date</Label>
+   316→                  <Input type="date" value={eggSaleDate} onChange={e => setEggSaleDate(e.target.value)} className="h-9 text-sm" />
+   317→                </div>
+   318→                <div>
+   319→                  <Label className="text-xs">Crates *</Label>
+   320→                  <Input type="number" min="1" required placeholder="e.g. 10" value={eggCrateCount} onChange={e => setEggCrateCount(e.target.value)} className="h-9 text-sm" />
+   321→                </div>
+   322→                <div>
+   323→                  <Label className="text-xs">Price per Crate (GHS) *</Label>
+   324→                  <Input type="number" min="0" step="0.5" required placeholder="e.g. 35" value={eggPricePerCrate} onChange={e => setEggPricePerCrate(e.target.value)} className="h-9 text-sm" />
+   325→                </div>
+   326→                <div>
+   327→                  <Label className="text-xs">Payment</Label>
+   328→                  <Select value={eggSalePayment} onValueChange={(v) => { setEggSalePayment(v); if (v !== 'Partial') setEggAmountPaid('') }}>
+   329→                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+   330→                    <SelectContent>
+   331→                      <SelectItem value="Paid">Paid</SelectItem>
+   332→                      <SelectItem value="Partial">Partial</SelectItem>
+   333→                      <SelectItem value="Unpaid">Credit / Unpaid</SelectItem>
+   334→                    </SelectContent>
+   335→                  </Select>
+   336→                </div>
+   337→                {eggSalePayment === 'Partial' && (
+   338→                  <div className="col-span-2 md:col-span-1">
+   339→                    <Label className="text-xs">Amount Paid (GHS)</Label>
+   340→                    <Input type="number" min="0" step="0.5" value={eggAmountPaid} onChange={e => setEggAmountPaid(e.target.value)} placeholder="e.g. 500" className="h-9 text-sm" />
+   341→                  </div>
+   342→                )}
+   343→                <div className="flex items-end col-span-2 md:col-span-3">
+   344→                  <Button type="submit" className="w-full md:w-auto h-9"><Plus className="h-3 w-3 mr-1" />Record Sale</Button>
+   345→                </div>
+   346→              </form>
+   347→            </CardContent>
+   348→          </Card>
+   349→
+   350→          {/* Recent egg sales */}
+   351→          <Card className="mt-4">
+   352→            <CardHeader className="pb-2">
+   353→              <CardTitle className="text-base">Recent Egg Sales</CardTitle>
+   354→            </CardHeader>
+   355→            <CardContent>
+   356→              <ScrollArea className="max-h-64">
+   357→                <div className="space-y-2">
+   358→                  {eggSales.slice(0, 20).map(s => (
+   359→                    <div key={s.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg text-sm">
+   360→                      <ShoppingBasket className="h-4 w-4 text-green-600 shrink-0" />
+   361→                      <div className="flex-1">
+   362→                        <p className="font-medium">{s.customer?.name || 'Walk-in'}</p>
+   363→                        <p className="text-xs text-gray-500">{new Date(s.date).toLocaleDateString('en-GB')} · {s.crateCount} crates x {formatGHS(s.pricePerCrate)}</p>
+   364→                      </div>
+   365→                      <div className="text-right">
+   366→                        <p className="font-medium">{formatGHS(s.totalAmount)}</p>
+   367→                        <Badge variant={s.paymentStatus === 'Paid' ? 'default' : 'destructive'} className="text-[10px]">
+   368→                          {s.paymentStatus}
+   369→                        </Badge>
+   370→                        {s.paymentStatus !== 'Paid' && s.totalAmount > 0 && (
+   371→                          <p className="text-[10px] text-red-600 mt-0.5">
+   372→                            Balance: {formatGHS(s.totalAmount - s.amountPaid)}
+   373→                          </p>
+   374→                        )}
+   375→                      </div>
+   376→                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-gray-400 hover:text-amber-600" onClick={() => openAmendmentDialog('EggSale', s.id, [
+   377→                        { key: 'crateCount', label: 'Crates', type: 'number' as const, value: s.crateCount },
+   378→                        { key: 'pricePerCrate', label: 'Price/Crate', type: 'number' as const, value: s.pricePerCrate },
+   379→                        { key: 'paymentStatus', label: 'Payment Status', type: 'text' as const, value: s.paymentStatus },
+   380→                        { key: 'amountPaid', label: 'Amount Paid', type: 'number' as const, value: s.amountPaid },
+   381→                      ])}>
+   382→                        <Pencil className="h-3 w-3" />
+   383→                      </Button>
+   384→                    </div>
+   385→                  ))}
+   386→                </div>
+   387→              </ScrollArea>
+   388→            </CardContent>
+   389→          </Card>
+   390→        </TabsContent>
+   391→
+   392→        <TabsContent value="bird-sales">
+   393→          <Card>
+   394→            <CardHeader className="pb-2">
+   395→              <CardTitle className="text-base">Record Bird Sale</CardTitle>
+   396→            </CardHeader>
+   397→            <CardContent>
+   398→              <form onSubmit={submitBirdSale} className="grid grid-cols-2 md:grid-cols-3 gap-3">
+   399→                <div>
+   400→                  <Label className="text-xs">Customer</Label>
+   401→                  <Select value={birdSaleCustomerId} onValueChange={setBirdSaleCustomerId}>
+   402→                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Walk-in" /></SelectTrigger>
+   403→                    <SelectContent>
+   404→                      {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+   405→                    </SelectContent>
+   406→                  </Select>
+   407→                </div>
+   408→                <div>
+   409→                  <Label className="text-xs">Farm *</Label>
+   410→                  <Select value={birdSaleFarmId} onValueChange={setBirdSaleFarmId}>
+   411→                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select farm" /></SelectTrigger>
+   412→                    <SelectContent>
+   413→                      {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+   414→                    </SelectContent>
+   415→                  </Select>
+   416→                </div>
+   417→                </div>
+   418→                <div>
+   419→                  <Label className="text-xs">Flock (optional)</Label>
+   420→                  <Select value={birdSaleFlockId || 'none' onValueChange={(v) => setBirdSaleFlockId(v === 'none
+   421→' ? '
+   422→' : v)}>
+   423→                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select flock" /></SelectTrigger>
+   424→                    <SelectContent>
+   425→                      <SelectItem value="none">None / Walk-in</SelectItem>
+   426→                      {birdFlocks.map(fl => (
+   427→                        <SelectItem key={fl.id} value={fl.id}>{fl.name} ({fl.birdCount} birds)</SelectItem>
+   428→                      ))}
+   429→                    </SelectContent>
+   430→                  </Select>
+   431→                </div>
+   432→                  <Label className="text-xs">Date</Label>
+   433→                  <Input type="date" value={birdSaleDate} onChange={e => setBirdSaleDate(e.target.value)} className="h-9 text-sm" />
+   434→                </div>
+   435→                <div>
+   436→                  <Label className="text-xs">Quantity *</Label>
+   437→                  <Input type="number" min="1" required placeholder="e.g. 50" value={birdQuantity} onChange={e => setBirdQuantity(e.target.value)} className="h-9 text-sm" />
+   438→                </div>
+   439→                <div>
+   440→                  <Label className="text-xs">Price per Bird (GHS) *</Label>
+   441→                  <Input type="number" min="0" step="0.5" required placeholder="e.g. 30" value={birdPricePerBird} onChange={e => setBirdPricePerBird(e.target.value)} className="h-9 text-sm" />
+   442→                </div>
+   443→                <div>
+   444→                  <Label className="text-xs">Avg Weight (kg)</Label>
+   445→                  <Input type="number" step="0.1" placeholder="e.g. 1.8" value={birdWeightPerBird} onChange={e => setBirdWeightPerBird(e.target.value)} className="h-9 text-sm" />
+   446→                </div>
+   447→                <div>
+   448→                  <Label className="text-xs">Payment</Label>
+   449→                  <Select value={birdSalePayment} onValueChange={(v) => { setBirdSalePayment(v); if (v !== 'Partial') setBirdAmountPaid('') }}>
+   450→                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+   451→                    <SelectContent>
+   452→                      <SelectItem value="Paid">Paid</SelectItem>
+   453→                      <SelectItem value="Partial">Partial</SelectItem>
+   454→                      <SelectItem value="Unpaid">Credit / Unpaid</SelectItem>
+   455→                    </SelectContent>
+   456→                  </Select>
+   457→                </div>
+   458→                {birdSalePayment === 'Partial' && (
+   459→                  <div>
+   460→                    <Label className="text-xs">Amount Paid (GHS)</Label>
+   461→                    <Input type="number" min="0" step="0.5" value={birdAmountPaid} onChange={e => setBirdAmountPaid(e.target.value)} placeholder="e.g. 500" className="h-9 text-sm" />
+   462→                  </div>
+   463→                )}
+   464→                <div className="flex items-end col-span-2">
+   465→                  <Button type="submit" className="w-full md:w-auto h-9"><Plus className="h-3 w-3 mr-1" />Record Sale</Button>
+   466→                </div>
+   467→              </form>
+   468→            </CardContent>
+   469→          </Card>
+   470→
+   471→          <Card className="mt-4">
+   472→            <CardHeader className="pb-2">
+   473→              <CardTitle className="text-base">Recent Bird Sales</CardTitle>
+   474→            </CardHeader>
+   475→            <CardContent>
+   476→              <ScrollArea className="max-h-64">
+   477→                <div className="space-y-2">
+   478→                  {birdSales.slice(0, 20).map(s => (
+   479→                    <div key={s.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg text-sm">
+   480→                      <Bird className="h-4 w-4 text-blue-600 shrink-0" />
+   481→                      <div className="flex-1">
+   482→                        <p className="font-medium">{s.customer?.name || 'Walk-in'}</p>
+   483→                        <p className="text-xs text-gray-500">{new Date(s.date).toLocaleDateString('en-GB')} · {s.quantity} birds @ {formatGHS(s.pricePerBird)}/bird</p>
+   484→                      </div>
+   485→                      <div className="text-right">
+   486→                        <p className="font-medium">{formatGHS(s.totalAmount)}</p>
+   487→                        <Badge variant={s.paymentStatus === 'Paid' ? 'default' : 'destructive'} className="text-[10px]">
+   488→                          {s.paymentStatus}
+   489→                        </Badge>
+   490→                        {s.paymentStatus !== 'Paid' && s.totalAmount > 0 && (
+   491→                          <p className="text-[10px] text-red-600 mt-0.5">
+   492→                            Balance: {formatGHS(s.totalAmount - s.amountPaid)}
+   493→                          </p>
+   494→                        )}
+   495→                      </div>
+   496→                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-gray-400 hover:text-amber-600" onClick={() => openAmendmentDialog('BirdSale', s.id, [
+   497→                        { key: 'quantity', label: 'Quantity', type: 'number' as const, value: s.quantity },
+   498→                        { key: 'pricePerBird', label: 'Price/Bird', type: 'number' as const, value: s.pricePerBird },
+   499→                        { key: 'paymentStatus', label: 'Payment Status', type: 'text' as const, value: s.paymentStatus },
+   500→                        { key: 'amountPaid', label: 'Amount Paid', type: 'number' as const, value: s.amountPaid },
+   501→                      ])}>
+   502→                        <Pencil className="h-3 w-3" />
+   503→                      </Button>
+   504→                    </div>
+   505→                  ))}
+   506→                </div>
+   507→              </ScrollArea>
+   508→            </CardContent>
+   509→          </Card>
+   510→        </TabsContent>
+   511→
+   512→        <TabsContent value="customers">
+   513→          <Card>
+   514→            <CardHeader className="pb-2">
+   515→              <CardTitle className="text-base">Add Customer</CardTitle>
+   516→            </CardHeader>
+   517→            <CardContent>
+   518→              <form onSubmit={addCustomer} className="grid grid-cols-2 md:grid-cols-4 gap-3">
+   519→                <div>
+   520→                  <Label className="text-xs">Name *</Label>
+   521→                  <Input required placeholder="Customer name" value={custName} onChange={e => setCustName(e.target.value)} className="h-9 text-sm" />
+   522→                </div>
+   523→                <div>
+   524→                  <Label className="text-xs">Phone</Label>
+   525→                  <Input placeholder="+233..." value={custPhone} onChange={e => setCustPhone(e.target.value)} className="h-9 text-sm" />
+   526→                </div>
+   527→                <div>
+   528→                  <Label className="text-xs">Location</Label>
+   529→                  <Input placeholder="Town/City" value={custLocation} onChange={e => setCustLocation(e.target.value)} className="h-9 text-sm" />
+   530→                </div>
+   531→                <div>
+   532→                  <Label className="text-xs">Type</Label>
+   533→                  <Select value={customerType} onValueChange={setCustomerType}>
+   534→                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+   535→                    <SelectContent>
+   536→                      <SelectItem value="Wholesale">Wholesale</SelectItem>
+   537→                      <SelectItem value="Retail">Retail</SelectItem>
+   538→                      <SelectItem value="Walk-in">Walk-in</SelectItem>
+   539→                    </SelectContent>
+   540→                  </Select>
+   541→                </div>
+   542→                <div className="flex items-end col-span-2 md:col-span-4">
+   543→                  <Button type="submit" className="w-full md:w-auto h-9"><Plus className="h-3 w-3 mr-1" />Add Customer</Button>
+   544→                </div>
+   545→              </form>
+   546→            </CardContent>
+   547→          </Card>
+   548→
+   549→          <Card className="mt-4">
+   550→            <CardHeader className="pb-2">
+   551→              <CardTitle className="text-base">Customer List ({customers.length})</CardTitle>
+   552→            </CardHeader>
+   553→            <CardContent>
+   554→              <ScrollArea className="max-h-72">
+   555→                <div className="space-y-2">
+   556→                  {customers.map(c => (
+   557→                    <div key={c.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg text-sm">
+   558→                      <Users className="h-4 w-4 text-gray-500 shrink-0" />
+   559→                      <div className="flex-1">
+   560→                        <p className="font-medium">{c.name}</p>
+   561→                        <p className="text-xs text-gray-500">{c.phone || 'No phone'} · {c.location || 'No location'}</p>
+   562→                      </div>
+   563→                      <Badge variant={c.customerType === 'Wholesale' ? 'default' : 'secondary'} className="text-[10px]">
+   564→                        {c.customerType}
+   565→                      </Badge>
+   566→                    </div>
+   567→                  ))}
+   568→                </div>
+   569→              </ScrollArea>
+   570→            </CardContent>
+   571→          </Card>
+   572→        </TabsContent>
+   573→
+   574→        <TabsContent value="unpaid">
+   575→          <Card>
+   576→            <CardHeader className="pb-2">
+   577→              <CardTitle className="text-base flex items-center gap-2">
+   578→                <AlertCircle className="h-4 w-4 text-red-500" />
+   579→                Unpaid / Credit Sales
+   580→              </CardTitle>
+   581→            </CardHeader>
+   582→            <CardContent>
+   583→              {(() => {
+   584→                const unpaid = [
+   585→                  ...eggSales.filter(s => s.paymentStatus !== 'Paid').map(s => ({ ...s, type: 'Eggs' as const })),
+   586→                  ...birdSales.filter(s => s.paymentStatus !== 'Paid').map(s => ({ ...s, type: 'Birds' as const })),
+   587→                ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+   588→
+   589→                if (unpaid.length === 0) return <p className="text-center text-gray-400 py-4 text-sm">All sales are paid up!</p>
+   590→
+   591→                return (
+   592→                  <ScrollArea className="max-h-72">
+   593→                    <div className="space-y-2">
+   594→                      {unpaid.map(s => (
+   595→                        <div key={s.id} className="flex items-center gap-3 p-2 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+   596→                          <CreditCard className="h-4 w-4 text-amber-600 shrink-0" />
+   597→                          <div className="flex-1">
+   598→                            <p className="font-medium">{s.customer?.name || 'Walk-in'} ({s.type})</p>
+   599→                            <p className="text-xs text-gray-500">{new Date(s.date).toLocaleDateString('en-GB')}</p>
+   600→                          </div>
+   601→                          <div className="text-right">
+   602→                            <p className="font-medium text-red-600">{formatGHS(s.totalAmount - s.amountPaid)} due</p>
+   603→                            <p className="text-xs text-gray-500">of {formatGHS(s.totalAmount)}</p>
+   604→                          </div>
+   605→                        </div>
+   606→                      ))}
+   607→                    </div>
+   608→                  </ScrollArea>
+   609→                )
+   610→              })()}
+   611→            </CardContent>
+   612→          </Card>
+   613→        </TabsContent>
+   614→      </Tabs>
+   615→      {/* Amendment Dialog */}
+   616→      <AmendmentRequestDialog
+   617→        open={amendmentOpen}
+   618→        onOpenChange={setAmendmentOpen}
+   619→        recordType={amendmentTarget.recordType}
+   620→        recordId={amendmentTarget.recordId}
+   621→        fields={amendmentTarget.fields}
+   622→      />
+   623→    </div>
+   624→  )
+   625→}
+   626→
