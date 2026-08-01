@@ -100,9 +100,11 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  await ensureDbSchema()
   try {
     const body = await request.json()
-    const { id, updateBirdCount, ...data } = body
+    const { id, updateBirdCount, notes, ...rest } = body
+    const data: any = {}
     // If CEO sends updateBirdCount, allow overriding birdCount (e.g. adding birds to existing flock)
     if (updateBirdCount !== undefined) {
       data.birdCount = Math.max(0, parseInt(updateBirdCount) || 0)
@@ -112,9 +114,16 @@ export async function PUT(request: NextRequest) {
         data.initialBirdCount = data.birdCount
       }
     }
+    if (notes !== undefined) data.notes = notes
+    if (rest.name) data.name = rest.name
+    if (rest.birdType) data.birdType = rest.birdType
+    if (rest.breed) data.breed = rest.breed
+    if (rest.isActive !== undefined) data.isActive = rest.isActive
+    console.log('[PUT /api/flocks] id:', id, 'updateBirdCount:', updateBirdCount, 'data:', JSON.stringify(data))
     const flock = await db.birdFlock.update({ where: { id }, data })
     return NextResponse.json(flock)
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to update flock' }, { status: 500 })
+  } catch (error: any) {
+    console.error('[PUT /api/flocks] ERROR:', error.message)
+    return NextResponse.json({ error: 'Failed to update flock', detail: error.message }, { status: 500 })
   }
 }

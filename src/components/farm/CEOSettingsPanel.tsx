@@ -538,11 +538,13 @@ function BirdFlockManager() {
         }),
       })
       if (res.ok) {
-        toast.success(`"${editFlock.name}" updated to ${newCount.toLocaleString()} birds`)
+        const updated = await res.json()
+        toast.success(`"${editFlock.name}" updated to ${updated.birdCount.toLocaleString()} birds`)
         setEditFlock(null)
         fetchData()
       } else {
-        toast.error('Failed to update flock')
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.detail || err.error || 'Failed to update flock')
       }
     } catch { toast.error('Network error') } finally { setSaving(false) }
   }
