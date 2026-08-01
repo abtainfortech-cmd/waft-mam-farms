@@ -31,7 +31,7 @@ const roleConfig: Record<Role, { label: string; icon: React.ReactNode; color: st
   SALES: { label: 'Sales', icon: <ShoppingBasket className="h-4 w-4" />, color: 'text-green-600' },
   FARM_HAND: { label: 'Farm Hand', icon: <Egg className="h-4 w-4" />, color: 'text-orange-600' },
   ACCOUNTANT: { label: 'Accountant', icon: <Calculator className="h-4 w-4" />, color: 'text-blue-600' },
-  VET: { label: 'Vet Officer', icon: <Stethoscope className="h-4 w-4" />, color: 'text-rose-600' },
+  VET: { label: 'Veterinary', icon: <Stethoscope className="h-4 w-4" />, color: 'text-rose-600' },
 }
 
 function RoleSidebar() {

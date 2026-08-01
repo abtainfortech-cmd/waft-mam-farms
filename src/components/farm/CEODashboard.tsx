@@ -14,10 +14,13 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, PieChart, Pie, Cell, Legend,
 } from 'recharts'
 import { LiveSyncIndicator } from '@/components/farm/LiveSyncIndicator'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Building2, Egg, TrendingUp, TrendingDown, AlertTriangle, DollarSign, Bird, Activity, ChevronRight,
   RefreshCw, MapPin, AlertCircle, CheckCircle2, Clock, Shield, Trash2, Loader2,
-  Crown, Settings, RotateCcw, Users, Megaphone
+  Crown, Settings, RotateCcw, Users, Megaphone, FileText, Download
 } from 'lucide-react'
 
 const COLORS = ['#16a34a', '#ea580c', '#2563eb', '#9333ea', '#e11d48', '#ca8a04', '#06b6d4', '#84cc16']
@@ -50,6 +53,18 @@ export function CEODashboard() {
   const [loading, setLoading] = useState(true)
   const [resetLoading, setResetLoading] = useState<string | null>(null)
 
+  // Financial Statement state
+  const [stmtFrom, setStmtFrom] = useState(() => {
+    const d = new Date()
+    d.setDate(1)
+    return d.toISOString().split('T')[0]
+  })
+  const [stmtTo, setStmtTo] = useState(() => new Date().toISOString().split('T')[0])
+  const [stmtFarmId, setStmtFarmId] = useState('')
+  const [stmtLoading, setStmtLoading] = useState(false)
+  const [stmtData, setStmtData] = useState<any>(null)
+  const [stmtFarms, setStmtFarms] = useState<{ id: string; name: string }[]>([])
+
   const fetchDashboard = useCallback(async () => {
     setLoading(true)
     try {
@@ -66,6 +81,11 @@ export function CEODashboard() {
   }, [])
 
   useEffect(() => { fetchDashboard() }, [fetchDashboard])
+
+  // Fetch farms list for statement filter
+  useEffect(() => {
+    fetch('/api/farms').then(r => r.ok ? r.json() : []).then(setStmtFarms).catch(() => {})
+  }, [])
 
   // Data Reset for CEO
   const handleDataReset = async (recordType: string) => {
@@ -110,6 +130,69 @@ export function CEODashboard() {
 
   const expensePieData = Object.entries(data.thisMonth.expenseByCategory).map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }))
   const hasExpenses = expensePieData.length > 0
+
+  // Generate financial statement
+  const generateStatement = async () => {
+    if (!stmtFrom || !stmtTo) { toast.error('Please select both dates'); return }
+    setStmtLoading(true)
+    setStmtData(null)
+    try {
+      const params = new URLSearchParams({ dateFrom: stmtFrom, dateTo: stmtTo })
+      if (stmtFarmId) params.set('farmId', stmtFarmId)
+      const res = await fetch(`/api/statement?${params}`)
+      if (res.ok) {
+        const json = await res.json()
+        setStmtData(json)
+        toast.success(`Statement generated for ${stmtFrom} to ${stmtTo}`)
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Failed to generate statement')
+      }
+    } catch (err) { console.error(err); toast.error('Network error') }
+    finally { setStmtLoading(false) }
+  }
+
+  // Export statement as CSV
+  const exportStatementCSV = () => {
+    if (!stmtData) return
+    const lines: string[] = []
+    lines.push(`FINANCIAL STATEMENT: ${stmtData.period.dateFrom} to ${stmtData.period.dateTo} (${stmtData.period.days} days)`)
+    lines.push('')
+    lines.push('=== REVENUE ===')
+    lines.push(`Egg Sales: ${stmtData.revenue.eggSales.count} transactions, ${stmtData.revenue.eggSales.crates} crates, ${stmtData.revenue.eggSales.eggs} eggs`) 
+    lines.push(`Egg Revenue: GHS ${stmtData.revenue.eggSales.total.toFixed(2)} (Paid: GHS ${stmtData.revenue.eggSales.amountPaid.toFixed(2)}, Owing: GHS ${stmtData.revenue.eggSales.receivable.toFixed(2)})`)
+    lines.push(`Bird Sales: ${stmtData.revenue.birdSales.count} transactions, ${stmtData.revenue.birdSales.birds} birds`)
+    lines.push(`Bird Revenue: GHS ${stmtData.revenue.birdSales.total.toFixed(2)} (Paid: GHS ${stmtData.revenue.birdSales.amountPaid.toFixed(2)}, Owing: GHS ${stmtData.revenue.birdSales.receivable.toFixed(2)})`)
+    lines.push('')
+    lines.push(`TOTAL REVENUE: GHS ${stmtData.revenue.total.toFixed(2)}`)
+    lines.push(`Total Paid: GHS ${stmtData.revenue.totalPaid.toFixed(2)}`)
+    lines.push(`Total Receivable (Owing): GHS ${stmtData.revenue.totalReceivable.toFixed(2)}`)
+    lines.push('')
+    lines.push('=== EXPENSES ===')
+    lines.push(`Total Expenses: GHS ${stmtData.expenses.total.toFixed(2)} (${stmtData.expenses.count} records)`)
+    lines.push(`Unpaid Expenses (Payable): GHS ${stmtData.expenses.totalPayable.toFixed(2)} (${stmtData.expenses.unpaid} records)`)
+    for (const [cat, amt] of Object.entries(stmtData.expenses.byCategory)) {
+      lines.push(`  ${cat}: GHS ${(amt as number).toFixed(2)}`)
+    }
+    lines.push('')
+    lines.push(`GROSS PROFIT: GHS ${stmtData.profit.toFixed(2)}`)
+    lines.push(`NET CASH FLOW: GHS ${stmtData.netCashFlow.toFixed(2)}`)
+    lines.push('')
+    lines.push('=== PRODUCTION ===')
+    lines.push(`Egg Crates Collected: ${stmtData.production.eggCratesCollected}`)
+    lines.push(`Total Eggs Collected: ${stmtData.production.eggsCollected}`)
+    lines.push(`Broken Eggs: ${stmtData.production.brokenEggs}`)
+    lines.push(`Soiled Eggs: ${stmtData.production.soiledEggs}`)
+    lines.push('')
+    lines.push('--- Generated by WAFT MAM Farms Management System ---')
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `statement_${stmtFrom}_to_${stmtTo}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -206,6 +289,137 @@ export function CEODashboard() {
           <p className="text-[10px] text-amber-700 mt-2 text-center">
             ⚠️ "Full Data Reset" wipes ALL records permanently. Use carefully.
           </p>
+        </CardContent>
+      </Card>
+
+      {/* Financial Statement Query */}
+      <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2 text-blue-800">
+            <FileText className="h-4 w-4" />
+            Financial Statement
+          </CardTitle>
+          <CardDescription className="text-xs text-blue-700">
+            Generate a revenue & expense statement for any date range.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 items-end">
+            <div>
+              <Label className="text-xs">From Date *</Label>
+              <Input type="date" value={stmtFrom} onChange={e => setStmtFrom(e.target.value)} className="h-9 text-sm" />
+            </div>
+            <div>
+              <Label className="text-xs">To Date *</Label>
+              <Input type="date" value={stmtTo} onChange={e => setStmtTo(e.target.value)} className="h-9 text-sm" />
+            </div>
+            <div>
+              <Label className="text-xs">Farm</Label>
+              <Select value={stmtFarmId || 'all'} onValueChange={(v) => setStmtFarmId(v === 'all' ? '' : v)}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="All Farms" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Farms</SelectItem>
+                  {stmtFarms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Button type="button" onClick={generateStatement} disabled={stmtLoading} className="w-full h-9 text-xs gap-1.5">
+                {stmtLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
+                {stmtLoading ? 'Loading...' : 'Generate'}
+              </Button>
+            </div>
+            {stmtData && (
+              <div>
+                <Button type="button" variant="outline" onClick={exportStatementCSV} className="w-full h-9 text-xs gap-1.5">
+                  <Download className="h-3.5 w-3.5" />
+                  Export CSV
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Statement Results */}
+          {stmtData && (
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center gap-2 px-1">
+                <div className="h-px flex-1 bg-blue-200" />
+                <span className="text-[10px] font-bold tracking-[0.15em] text-blue-600 uppercase">
+                  Statement: {stmtData.period.dateFrom} to {stmtData.period.dateTo} ({stmtData.period.days} days)
+                </span>
+                <div className="h-px flex-1 bg-blue-200" />
+              </div>
+
+              {/* Summary KPIs */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                  <p className="text-[10px] text-gray-500 uppercase">Total Revenue</p>
+                  <p className="text-lg font-bold text-green-700">{formatGHS(stmtData.revenue.total)}</p>
+                  <p className="text-[10px] text-gray-400">Paid: {formatGHS(stmtData.revenue.totalPaid)}</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-red-200">
+                  <p className="text-[10px] text-gray-500 uppercase">Total Expenses</p>
+                  <p className="text-lg font-bold text-red-600">{formatGHS(stmtData.expenses.total)}</p>
+                  <p className="text-[10px] text-gray-400">{stmtData.expenses.count} records</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-emerald-200">
+                  <p className="text-[10px] text-gray-500 uppercase">Gross Profit</p>
+                  <p className={`text-lg font-bold ${stmtData.profit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatGHS(stmtData.profit)}</p>
+                  <p className="text-[10px] text-gray-400">Revenue - Expenses</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-amber-200">
+                  <p className="text-[10px] text-gray-500 uppercase">Outstanding</p>
+                  <p className="text-lg font-bold text-amber-700">{formatGHS(stmtData.revenue.totalReceivable + stmtData.expenses.totalPayable)}</p>
+                  <p className="text-[10px] text-gray-400">Receivable + Payable</p>
+                </div>
+              </div>
+
+              {/* Revenue Breakdown */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="bg-white rounded-lg p-3 border border-gray-100">
+                  <p className="text-xs font-semibold mb-2 flex items-center gap-1.5 text-green-800">
+                    <DollarSign className="h-3.5 w-3.5" /> Revenue Breakdown
+                  </p>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between"><span className="text-gray-600">Egg Sales ({stmtData.revenue.eggSales.count} txns, {stmtData.revenue.eggSales.crates} crates)</span><span className="font-medium">{formatGHS(stmtData.revenue.eggSales.total)}</span></div>
+                    <div className="flex justify-between pl-2"><span className="text-gray-400">Paid</span><span className="text-green-600">{formatGHS(stmtData.revenue.eggSales.amountPaid)}</span></div>
+                    {stmtData.revenue.eggSales.unpaid > 0 && <div className="flex justify-between pl-2"><span className="text-gray-400">Owing ({stmtData.revenue.eggSales.unpaid} txns)</span><span className="text-red-500">{formatGHS(stmtData.revenue.eggSales.receivable)}</span></div>}
+                    <div className="border-t pt-1.5 mt-1.5 flex justify-between"><span className="text-gray-600">Bird Sales ({stmtData.revenue.birdSales.count} txns, {stmtData.revenue.birdSales.birds} birds)</span><span className="font-medium">{formatGHS(stmtData.revenue.birdSales.total)}</span></div>
+                    <div className="flex justify-between pl-2"><span className="text-gray-400">Paid</span><span className="text-green-600">{formatGHS(stmtData.revenue.birdSales.amountPaid)}</span></div>
+                    {stmtData.revenue.birdSales.unpaid > 0 && <div className="flex justify-between pl-2"><span className="text-gray-400">Owing ({stmtData.revenue.birdSales.unpaid} txns)</span><span className="text-red-500">{formatGHS(stmtData.revenue.birdSales.receivable)}</span></div>}
+                  </div>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-gray-100">
+                  <p className="text-xs font-semibold mb-2 flex items-center gap-1.5 text-red-800">
+                    <TrendingDown className="h-3.5 w-3.5" /> Expense Breakdown
+                  </p>
+                  {Object.keys(stmtData.expenses.byCategory).length === 0 ? (
+                    <p className="text-xs text-gray-400 py-2">No expenses in this period</p>
+                  ) : (
+                    <div className="space-y-1 text-xs">
+                      {Object.entries(stmtData.expenses.byCategory).sort((a, b) => (b[1] as number) - (a[1] as number)).map(([cat, amt]) => (
+                        <div key={cat} className="flex justify-between"><span className="text-gray-600">{cat}</span><span className="font-medium text-red-600">{formatGHS(amt as number)}</span></div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="border-t mt-2 pt-1.5 flex justify-between text-xs"><span className="text-gray-500">Unpaid (Payable)</span><span className="font-medium text-amber-600">{formatGHS(stmtData.expenses.totalPayable)}</span></div>
+                </div>
+              </div>
+
+              {/* Production Summary */}
+              <div className="bg-white rounded-lg p-3 border border-gray-100">
+                <p className="text-xs font-semibold mb-2 flex items-center gap-1.5 text-amber-800">
+                  <Egg className="h-3.5 w-3.5" /> Production Summary
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                  <div><span className="text-gray-400">Crates Collected</span><p className="font-semibold">{stmtData.production.eggCratesCollected}</p></div>
+                  <div><span className="text-gray-400">Total Eggs</span><p className="font-semibold">{stmtData.production.eggsCollected}</p></div>
+                  <div><span className="text-gray-400">Broken</span><p className="font-semibold text-red-500">{stmtData.production.brokenEggs}</p></div>
+                  <div><span className="text-gray-400">Soiled</span><p className="font-semibold text-amber-500">{stmtData.production.soiledEggs}</p></div>
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
