@@ -1,0 +1,854 @@
+     1→'use client'
+     2→
+     3→import { useEffect, useState, useCallback } from 'react'
+     4→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+     5→import { Badge } from '@/components/ui/badge'
+     6→import { Button } from '@/components/ui/button'
+     7→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+     8→import { ScrollArea } from '@/components/ui/scroll-area'
+     9→import { Separator } from '@/components/ui/separator'
+    10→import { Skeleton } from '@/components/ui/skeleton'
+    11→import { useAppStore } from '@/store/app'
+    12→import { toast } from 'sonner'
+    13→import {
+    14→  BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, PieChart, Pie, Cell, Legend,
+    15→} from 'recharts'
+    16→import { LiveSyncIndicator } from '@/components/farm/LiveSyncIndicator'
+    17→import { Input } from '@/components/ui/input'
+    18→import { Label } from '@/components/ui/label'
+    19→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    20→import {
+    21→  Building2, Egg, TrendingUp, TrendingDown, AlertTriangle, DollarSign, Bird, Activity, ChevronRight,
+    22→  RefreshCw, MapPin, AlertCircle, CheckCircle2, Clock, Shield, Trash2, Loader2,
+    23→  Crown, Settings, RotateCcw, Users, Megaphone, FileText, Download
+    24→} from 'lucide-react'
+    25→
+    26→const COLORS = ['#16a34a', '#ea580c', '#2563eb', '#9333ea', '#e11d48', '#ca8a04', '#06b6d4', '#84cc16']
+    27→
+    28→interface DashboardData {
+    29→  totalFarms: number
+    30→  totalBirds: number
+    31→  totalLayerBirds: number
+    32→  totalFlocks: number
+    33→  totalDepletion: number
+    34→  flockDetails: any[]
+    35→  todayLayRate: number
+    36→  monthLayRate: number
+    37→  today: { eggCrates: number; totalEggs: number; layRate: number }
+    38→  thisWeek: { eggCrates: number; mortality: number }
+    39→  thisMonth: {
+    40→    eggCrates: number; eggsSold: number; eggRevenue: number; birdsSold: number; birdRevenue: number
+    41→    totalRevenue: number; expenses: number; profit: number; mortality: number
+    42→    expenseByCategory: Record<string, number>
+    43→  }
+    44→  overdueVaccinations: any[]
+    45→  upcomingVaccinations: any[]
+    46→  unpaidAccounts: { receivable: number; payable: number; unpaidEggSales: number; unpaidBirdSales: number; unpaidExpenses: number }
+    47→  dailyEggTrend: { date: string; crates: number; eggs: number }[]
+    48→  farmBreakdown: any[]
+    49→}
+    50→
+    51→function formatGHS(amount: number) {
+    52→  return `GHS ${amount.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    53→}
+    54→
+    55→export function CEODashboard() {
+    56→  const { selectedFarmId, currentUser } = useAppStore()
+    57→  const [data, setData] = useState<DashboardData | null>(null)
+    58→  const [loading, setLoading] = useState(true)
+    59→  const [resetLoading, setResetLoading] = useState<string | null>(null)
+    60→
+    61→  // Financial Statement state
+    62→  const [stmtFrom, setStmtFrom] = useState(() => {
+    63→    const d = new Date()
+    64→    d.setDate(1)
+    65→    return d.toISOString().split('T')[0]
+    66→  })
+    67→  const [stmtTo, setStmtTo] = useState(() => new Date().toISOString().split('T')[0])
+    68→  const [stmtFarmId, setStmtFarmId] = useState('')
+    69→  const [stmtLoading, setStmtLoading] = useState(false)
+    70→  const [stmtData, setStmtData] = useState<any>(null)
+    71→  const [stmtFarms, setStmtFarms] = useState<{ id: string; name: string }[]>([])
+    72→
+    73→  const fetchDashboard = useCallback(async () => {
+    74→    setLoading(true)
+    75→    try {
+    76→      const res = await fetch('/api/dashboard')
+    77→      if (res.ok) {
+    78→        const json = await res.json()
+    79→        setData(json)
+    80→      }
+    81→    } catch (e) {
+    82→      console.error(e)
+    83→    } finally {
+    84→      setLoading(false)
+    85→    }
+    86→  }, [])
+    87→
+    88→  useEffect(() => { fetchDashboard() }, [fetchDashboard])
+    89→
+    90→  // Fetch farms list for statement filter
+    91→  useEffect(() => {
+    92→    fetch('/api/farms').then(r => r.ok ? r.json() : []).then(setStmtFarms).catch(() => {})
+    93→  }, [])
+    94→
+    95→  // Data Reset for CEO
+    96→  const handleDataReset = async (recordType: string) => {
+    97→    if (!confirm(`Are you sure you want to reset all ${recordType} records? This will set numeric fields to 0 and clear string fields. This action cannot be undone.`)) {
+    98→      return
+    99→    }
+   100→    setResetLoading(recordType)
+   101→    try {
+   102→      const res = await fetch('/api/reset', {
+   103→        method: 'POST',
+   104→        headers: { 'Content-Type': 'application/json' },
+   105→        body: JSON.stringify({ recordType, farmId: selectedFarmId || undefined, role: currentUser?.role || 'CEO' }),
+   106→      })
+   107→      if (res.ok) {
+   108→        const result = await res.json()
+   109→        toast.success(`Reset ${result.count} ${recordType} records (${result.farmId})`)
+   110→      } else {
+   111→        const err = await res.json().catch(() => ({}))
+   112→        toast.error(err.error || 'Failed to reset data')
+   113→      }
+   114→    } catch {
+   115→      toast.error('Network error')
+   116→    } finally {
+   117→      setResetLoading(null)
+   118→    }
+   119→  }
+   120→
+   121→  // Auto-refresh: CEO dashboard polls every 10s for freshest overview
+   122→  const handleAutoData = useCallback((dashboardData: any) => {
+   123→    if (dashboardData) setData(dashboardData)
+   124→  }, [])
+   125→
+   126→  if (loading || !data) {
+   127→    return (
+   128→      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+   129→        {Array.from({ length: 8 }).map((_, i) => (
+   130→          <Skeleton key={i} className="h-28 rounded-xl" />
+   131→        ))}
+   132→      </div>
+   133→    )
+   134→  }
+   135→
+   136→  const expensePieData = Object.entries(data.thisMonth.expenseByCategory).map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }))
+   137→  const hasExpenses = expensePieData.length > 0
+   138→
+   139→  // Generate financial statement
+   140→  const generateStatement = async () => {
+   141→    if (!stmtFrom || !stmtTo) { toast.error('Please select both dates'); return }
+   142→    setStmtLoading(true)
+   143→    setStmtData(null)
+   144→    try {
+   145→      const params = new URLSearchParams({ dateFrom: stmtFrom, dateTo: stmtTo })
+   146→      if (stmtFarmId) params.set('farmId', stmtFarmId)
+   147→      const res = await fetch(`/api/statement?${params}`)
+   148→      if (res.ok) {
+   149→        const json = await res.json()
+   150→        setStmtData(json)
+   151→        toast.success(`Statement generated for ${stmtFrom} to ${stmtTo}`)
+   152→      } else {
+   153→        const err = await res.json().catch(() => ({}))
+   154→        toast.error(err.error || 'Failed to generate statement')
+   155→      }
+   156→    } catch (err) { console.error(err); toast.error('Network error') }
+   157→    finally { setStmtLoading(false) }
+   158→  }
+   159→
+   160→  // Export statement as CSV
+   161→  const exportStatementCSV = () => {
+   162→    if (!stmtData) return
+   163→    const lines: string[] = []
+   164→    lines.push(`FINANCIAL STATEMENT: ${stmtData.period.dateFrom} to ${stmtData.period.dateTo} (${stmtData.period.days} days)`)
+   165→    lines.push('')
+   166→    lines.push('=== REVENUE ===')
+   167→    lines.push(`Egg Sales: ${stmtData.revenue.eggSales.count} transactions, ${stmtData.revenue.eggSales.crates} crates, ${stmtData.revenue.eggSales.eggs} eggs`) 
+   168→    lines.push(`Egg Revenue: GHS ${stmtData.revenue.eggSales.total.toFixed(2)} (Paid: GHS ${stmtData.revenue.eggSales.amountPaid.toFixed(2)}, Owing: GHS ${stmtData.revenue.eggSales.receivable.toFixed(2)})`)
+   169→    lines.push(`Bird Sales: ${stmtData.revenue.birdSales.count} transactions, ${stmtData.revenue.birdSales.birds} birds`)
+   170→    lines.push(`Bird Revenue: GHS ${stmtData.revenue.birdSales.total.toFixed(2)} (Paid: GHS ${stmtData.revenue.birdSales.amountPaid.toFixed(2)}, Owing: GHS ${stmtData.revenue.birdSales.receivable.toFixed(2)})`)
+   171→    lines.push('')
+   172→    lines.push(`TOTAL REVENUE: GHS ${stmtData.revenue.total.toFixed(2)}`)
+   173→    lines.push(`Total Paid: GHS ${stmtData.revenue.totalPaid.toFixed(2)}`)
+   174→    lines.push(`Total Receivable (Owing): GHS ${stmtData.revenue.totalReceivable.toFixed(2)}`)
+   175→    lines.push('')
+   176→    lines.push('=== EXPENSES ===')
+   177→    lines.push(`Total Expenses: GHS ${stmtData.expenses.total.toFixed(2)} (${stmtData.expenses.count} records)`)
+   178→    lines.push(`Unpaid Expenses (Payable): GHS ${stmtData.expenses.totalPayable.toFixed(2)} (${stmtData.expenses.unpaid} records)`)
+   179→    for (const [cat, amt] of Object.entries(stmtData.expenses.byCategory)) {
+   180→      lines.push(`  ${cat}: GHS ${(amt as number).toFixed(2)}`)
+   181→    }
+   182→    lines.push('')
+   183→    lines.push(`GROSS PROFIT: GHS ${stmtData.profit.toFixed(2)}`)
+   184→    lines.push(`NET CASH FLOW: GHS ${stmtData.netCashFlow.toFixed(2)}`)
+   185→    lines.push('')
+   186→    lines.push('=== PRODUCTION ===')
+   187→    lines.push(`Egg Crates Collected: ${stmtData.production.eggCratesCollected}`)
+   188→    lines.push(`Total Eggs Collected: ${stmtData.production.eggsCollected}`)
+   189→    lines.push(`Broken Eggs: ${stmtData.production.brokenEggs}`)
+   190→    lines.push(`Soiled Eggs: ${stmtData.production.soiledEggs}`)
+   191→    lines.push('')
+   192→    lines.push('--- Generated by WAFT MAM Farms Management System ---')
+   193→    const blob = new Blob([lines.join('\n')], { type: 'text/csv' })
+   194→    const url = URL.createObjectURL(blob)
+   195→    const a = document.createElement('a')
+   196→    a.href = url
+   197→    a.download = `statement_${stmtFrom}_to_${stmtTo}.csv`
+   198→    a.click()
+   199→    URL.revokeObjectURL(url)
+   200→  }
+   201→
+   202→  return (
+   203→    <div className="space-y-4 md:space-y-6">
+   204→      {/* Alerts Banner */}
+   205→      {(data.overdueVaccinations.length > 0 || data.unpaidAccounts.receivable > 0 || data.unpaidAccounts.payable > 0) && (
+   206→        <div className="space-y-2">
+   207→          {data.overdueVaccinations.length > 0 && (
+   208→            <Card className="border-red-200 bg-red-50">
+   209→              <CardContent className="p-3 flex items-center gap-3">
+   210→                <Shield className="h-5 w-5 text-red-600 shrink-0" />
+   211→                <div className="flex-1">
+   212→                  <p className="text-sm font-medium text-red-800">
+   213→                    {data.overdueVaccinations.length} Overdue Vaccination{data.overdueVaccinations.length > 1 ? 's' : ''}
+   214→                  </p>
+   215→                  <p className="text-xs text-red-600">
+   216→                    {data.overdueVaccinations.slice(0, 2).map(v => `${v.vaccineName} at ${v.farm?.name}`).join(', ')}
+   217→                  </p>
+   218→                </div>
+   219→                <Badge variant="destructive" className="shrink-0">Urgent</Badge>
+   220→              </CardContent>
+   221→            </Card>
+   222→          )}
+   223→          {data.unpaidAccounts.receivable > 0 && (
+   224→            <Card className="border-amber-200 bg-amber-50">
+   225→              <CardContent className="p-3 flex items-center gap-3">
+   226→                <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+   227→                <div className="flex-1">
+   228→                  <p className="text-sm font-medium text-amber-800">
+   229→                    Outstanding Receivables: {formatGHS(data.unpaidAccounts.receivable)}
+   230→                  </p>
+   231→                  <p className="text-xs text-amber-600">
+   232→                    {data.unpaidAccounts.unpaidEggSales} egg sales, {data.unpaidAccounts.unpaidBirdSales} bird sales unpaid
+   233→                  </p>
+   234→                </div>
+   235→              </CardContent>
+   236→            </Card>
+   237→          )}
+   238→          {data.unpaidAccounts.payable > 0 && (
+   239→            <Card className="border-orange-200 bg-orange-50">
+   240→              <CardContent className="p-3 flex items-center gap-3">
+   241→                <Clock className="h-5 w-5 text-orange-600 shrink-0" />
+   242→                <div className="flex-1">
+   243→                  <p className="text-sm font-medium text-orange-800">
+   244→                    Unpaid Expenses Due: {formatGHS(data.unpaidAccounts.payable)}
+   245→                  </p>
+   246→                  <p className="text-xs text-orange-600">
+   247→                    {data.unpaidAccounts.unpaidExpenses} expense record{data.unpaidAccounts.unpaidExpenses > 1 ? 's' : ''} pending payment
+   248→                  </p>
+   249→                </div>
+   250→              </CardContent>
+   251→            </Card>
+   252→          )}
+   253→        </div>
+   254→      )}
+   255→
+   256→      {/* CEO Quick Actions — always visible at the top */}
+   257→      <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50">
+   258→        <CardHeader className="pb-2">
+   259→          <CardTitle className="text-base flex items-center gap-2 text-amber-800">
+   260→            <Crown className="h-4 w-4" />
+   261→            CEO Quick Actions
+   262→          </CardTitle>
+   263→          <CardDescription className="text-xs text-amber-700">
+   264→            Manage your farm system — change farm name, add/remove farms, wipe data, or jump to full settings.
+   265→          </CardDescription>
+   266→        </CardHeader>
+   267→        <CardContent>
+   268→          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+   269→            <a href="#" onClick={(e) => { e.preventDefault(); const el = document.querySelector('[data-value="settings"]') as HTMLElement; el?.click(); }}>
+   270→              <Button variant="outline" className="w-full h-12 text-xs gap-1.5 bg-white border-amber-200 hover:bg-amber-100">
+   271→                <Settings className="h-4 w-4 text-amber-700" />
+   272→                <span className="font-medium">Farm Settings</span>
+   273→              </Button>
+   274→            </a>
+   275→            <a href="#" onClick={(e) => { e.preventDefault(); const el = document.querySelector('[data-value="settings"]') as HTMLElement; el?.click(); setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 100); }}>
+   276→              <Button variant="outline" className="w-full h-12 text-xs gap-1.5 bg-white border-amber-200 hover:bg-amber-100">
+   277→                <RotateCcw className="h-4 w-4 text-red-600" />
+   278→                <span className="font-medium text-red-700">Full Data Reset</span>
+   279→              </Button>
+   280→            </a>
+   281→            <a href="#" onClick={(e) => { e.preventDefault(); const el = document.querySelector('[data-value="access"]') as HTMLElement; el?.click(); }}>
+   282→              <Button variant="outline" className="w-full h-12 text-xs gap-1.5 bg-white border-amber-200 hover:bg-amber-100">
+   283→                <Users className="h-4 w-4 text-blue-700" />
+   284→                <span className="font-medium">Manage Staff</span>
+   285→              </Button>
+   286→            </a>
+   287→            <a href="#" onClick={(e) => { e.preventDefault(); const el = document.querySelector('[data-value="announcements"]') as HTMLElement; el?.click(); }}>
+   288→              <Button variant="outline" className="w-full h-12 text-xs gap-1.5 bg-white border-amber-200 hover:bg-amber-100">
+   289→                <Megaphone className="h-4 w-4 text-green-700" />
+   290→                <span className="font-medium">Post Announcement</span>
+   291→              </Button>
+   292→            </a>
+   293→          </div>
+   294→          <p className="text-[10px] text-amber-700 mt-2 text-center">
+   295→            ⚠️ "Full Data Reset" wipes ALL records permanently. Use carefully.
+   296→          </p>
+   297→        </CardContent>
+   298→      </Card>
+   299→
+   300→      {/* Financial Statement Query */}
+   301→      <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50">
+   302→        <CardHeader className="pb-2">
+   303→          <CardTitle className="text-base flex items-center gap-2 text-blue-800">
+   304→            <FileText className="h-4 w-4" />
+   305→            Financial Statement
+   306→          </CardTitle>
+   307→          <CardDescription className="text-xs text-blue-700">
+   308→            Generate a revenue & expense statement for any date range.
+   309→          </CardDescription>
+   310→        </CardHeader>
+   311→        <CardContent>
+   312→          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 items-end">
+   313→            <div>
+   314→              <Label className="text-xs">From Date *</Label>
+   315→              <Input type="date" value={stmtFrom} onChange={e => setStmtFrom(e.target.value)} className="h-9 text-sm" />
+   316→            </div>
+   317→            <div>
+   318→              <Label className="text-xs">To Date *</Label>
+   319→              <Input type="date" value={stmtTo} onChange={e => setStmtTo(e.target.value)} className="h-9 text-sm" />
+   320→            </div>
+   321→            <div>
+   322→              <Label className="text-xs">Farm</Label>
+   323→              <Select value={stmtFarmId || 'all'} onValueChange={(v) => setStmtFarmId(v === 'all' ? '' : v)}>
+   324→                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="All Farms" /></SelectTrigger>
+   325→                <SelectContent>
+   326→                  <SelectItem value="all">All Farms</SelectItem>
+   327→                  {stmtFarms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+   328→                </SelectContent>
+   329→              </Select>
+   330→            </div>
+   331→            <div>
+   332→              <Button type="button" onClick={generateStatement} disabled={stmtLoading} className="w-full h-9 text-xs gap-1.5">
+   333→                {stmtLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
+   334→                {stmtLoading ? 'Loading...' : 'Generate'}
+   335→              </Button>
+   336→            </div>
+   337→            {stmtData && (
+   338→              <div>
+   339→                <Button type="button" variant="outline" onClick={exportStatementCSV} className="w-full h-9 text-xs gap-1.5">
+   340→                  <Download className="h-3.5 w-3.5" />
+   341→                  Export CSV
+   342→                </Button>
+   343→              </div>
+   344→            )}
+   345→          </div>
+   346→
+   347→          {/* Statement Results */}
+   348→          {stmtData && (
+   349→            <div className="mt-4 space-y-3">
+   350→              <div className="flex items-center gap-2 px-1">
+   351→                <div className="h-px flex-1 bg-blue-200" />
+   352→                <span className="text-[10px] font-bold tracking-[0.15em] text-blue-600 uppercase">
+   353→                  Statement: {stmtData.period.dateFrom} to {stmtData.period.dateTo} ({stmtData.period.days} days)
+   354→                </span>
+   355→                <div className="h-px flex-1 bg-blue-200" />
+   356→              </div>
+   357→
+   358→              {/* Summary KPIs */}
+   359→              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+   360→                <div className="bg-white rounded-lg p-3 border border-green-200">
+   361→                  <p className="text-[10px] text-gray-500 uppercase">Total Revenue</p>
+   362→                  <p className="text-lg font-bold text-green-700">{formatGHS(stmtData.revenue.total)}</p>
+   363→                  <p className="text-[10px] text-gray-400">Paid: {formatGHS(stmtData.revenue.totalPaid)}</p>
+   364→                </div>
+   365→                <div className="bg-white rounded-lg p-3 border border-red-200">
+   366→                  <p className="text-[10px] text-gray-500 uppercase">Total Expenses</p>
+   367→                  <p className="text-lg font-bold text-red-600">{formatGHS(stmtData.expenses.total)}</p>
+   368→                  <p className="text-[10px] text-gray-400">{stmtData.expenses.count} records</p>
+   369→                </div>
+   370→                <div className="bg-white rounded-lg p-3 border border-emerald-200">
+   371→                  <p className="text-[10px] text-gray-500 uppercase">Gross Profit</p>
+   372→                  <p className={`text-lg font-bold ${stmtData.profit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatGHS(stmtData.profit)}</p>
+   373→                  <p className="text-[10px] text-gray-400">Revenue - Expenses</p>
+   374→                </div>
+   375→                <div className="bg-white rounded-lg p-3 border border-amber-200">
+   376→                  <p className="text-[10px] text-gray-500 uppercase">Outstanding</p>
+   377→                  <p className="text-lg font-bold text-amber-700">{formatGHS(stmtData.revenue.totalReceivable + stmtData.expenses.totalPayable)}</p>
+   378→                  <p className="text-[10px] text-gray-400">Receivable + Payable</p>
+   379→                </div>
+   380→              </div>
+   381→
+   382→              {/* Revenue Breakdown */}
+   383→              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+   384→                <div className="bg-white rounded-lg p-3 border border-gray-100">
+   385→                  <p className="text-xs font-semibold mb-2 flex items-center gap-1.5 text-green-800">
+   386→                    <DollarSign className="h-3.5 w-3.5" /> Revenue Breakdown
+   387→                  </p>
+   388→                  <div className="space-y-1.5 text-xs">
+   389→                    <div className="flex justify-between"><span className="text-gray-600">Egg Sales ({stmtData.revenue.eggSales.count} txns, {stmtData.revenue.eggSales.crates} crates)</span><span className="font-medium">{formatGHS(stmtData.revenue.eggSales.total)}</span></div>
+   390→                    <div className="flex justify-between pl-2"><span className="text-gray-400">Paid</span><span className="text-green-600">{formatGHS(stmtData.revenue.eggSales.amountPaid)}</span></div>
+   391→                    {stmtData.revenue.eggSales.unpaid > 0 && <div className="flex justify-between pl-2"><span className="text-gray-400">Owing ({stmtData.revenue.eggSales.unpaid} txns)</span><span className="text-red-500">{formatGHS(stmtData.revenue.eggSales.receivable)}</span></div>}
+   392→                    <div className="border-t pt-1.5 mt-1.5 flex justify-between"><span className="text-gray-600">Bird Sales ({stmtData.revenue.birdSales.count} txns, {stmtData.revenue.birdSales.birds} birds)</span><span className="font-medium">{formatGHS(stmtData.revenue.birdSales.total)}</span></div>
+   393→                    <div className="flex justify-between pl-2"><span className="text-gray-400">Paid</span><span className="text-green-600">{formatGHS(stmtData.revenue.birdSales.amountPaid)}</span></div>
+   394→                    {stmtData.revenue.birdSales.unpaid > 0 && <div className="flex justify-between pl-2"><span className="text-gray-400">Owing ({stmtData.revenue.birdSales.unpaid} txns)</span><span className="text-red-500">{formatGHS(stmtData.revenue.birdSales.receivable)}</span></div>}
+   395→                  </div>
+   396→                </div>
+   397→                <div className="bg-white rounded-lg p-3 border border-gray-100">
+   398→                  <p className="text-xs font-semibold mb-2 flex items-center gap-1.5 text-red-800">
+   399→                    <TrendingDown className="h-3.5 w-3.5" /> Expense Breakdown
+   400→                  </p>
+   401→                  {Object.keys(stmtData.expenses.byCategory).length === 0 ? (
+   402→                    <p className="text-xs text-gray-400 py-2">No expenses in this period</p>
+   403→                  ) : (
+   404→                    <div className="space-y-1 text-xs">
+   405→                      {Object.entries(stmtData.expenses.byCategory).sort((a, b) => (b[1] as number) - (a[1] as number)).map(([cat, amt]) => (
+   406→                        <div key={cat} className="flex justify-between"><span className="text-gray-600">{cat}</span><span className="font-medium text-red-600">{formatGHS(amt as number)}</span></div>
+   407→                      ))}
+   408→                    </div>
+   409→                  )}
+   410→                  <div className="border-t mt-2 pt-1.5 flex justify-between text-xs"><span className="text-gray-500">Unpaid (Payable)</span><span className="font-medium text-amber-600">{formatGHS(stmtData.expenses.totalPayable)}</span></div>
+   411→                </div>
+   412→              </div>
+   413→
+   414→              {/* Production Summary */}
+   415→              <div className="bg-white rounded-lg p-3 border border-gray-100">
+   416→                <p className="text-xs font-semibold mb-2 flex items-center gap-1.5 text-amber-800">
+   417→                  <Egg className="h-3.5 w-3.5" /> Production Summary
+   418→                </p>
+   419→                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+   420→                  <div><span className="text-gray-400">Crates Collected</span><p className="font-semibold">{stmtData.production.eggCratesCollected}</p></div>
+   421→                  <div><span className="text-gray-400">Total Eggs</span><p className="font-semibold">{stmtData.production.eggsCollected}</p></div>
+   422→                  <div><span className="text-gray-400">Broken</span><p className="font-semibold text-red-500">{stmtData.production.brokenEggs}</p></div>
+   423→                  <div><span className="text-gray-400">Soiled</span><p className="font-semibold text-amber-500">{stmtData.production.soiledEggs}</p></div>
+   424→                </div>
+   425→              </div>
+   426→            </div>
+   427→          )}
+   428→        </CardContent>
+   429→      </Card>
+   430→
+   431→      {/* KPI Cards */}
+   432→      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+   433→        <Card>
+   434→          <CardContent className="p-4">
+   435→            <div className="flex items-center gap-2 mb-2">
+   436→              <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+   437→                <Building2 className="h-4 w-4 text-green-700" />
+   438→              </div>
+   439→              <span className="text-xs text-gray-500">Farms</span>
+   440→            </div>
+   441→            <p className="text-2xl font-bold text-gray-900">{data.totalFarms}</p>
+   442→            <p className="text-xs text-gray-500">{data.totalBirds.toLocaleString()} birds across {data.totalFlocks} flocks</p>
+   443→          </CardContent>
+   444→        </Card>
+   445→
+   446→        <Card>
+   447→          <CardContent className="p-4">
+   448→            <div className="flex items-center gap-2 mb-2">
+   449→              <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+   450→                <Egg className="h-4 w-4 text-amber-700" />
+   451→              </div>
+   452→              <span className="text-xs text-gray-500">Eggs Today</span>
+   453→            </div>
+   454→            <p className="text-2xl font-bold text-gray-900">{data.today.totalEggs.toLocaleString()}</p>
+   455→            <p className="text-xs text-gray-500">{data.today.eggCrates} crates collected</p>
+   456→          </CardContent>
+   457→        </Card>
+   458→
+   459→        <Card>
+   460→          <CardContent className="p-4">
+   461→            <div className="flex items-center gap-2 mb-2">
+   462→              <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+   463→                <DollarSign className="h-4 w-4 text-emerald-700" />
+   464→              </div>
+   465→              <span className="text-xs text-gray-500">Monthly Revenue</span>
+   466→            </div>
+   467→            <p className="text-2xl font-bold text-emerald-700">{formatGHS(data.thisMonth.totalRevenue)}</p>
+   468→            <p className="text-xs text-gray-500">Profit: {formatGHS(data.thisMonth.profit)}</p>
+   469→          </CardContent>
+   470→        </Card>
+   471→
+   472→        <Card>
+   473→          <CardContent className="p-4">
+   474→            <div className="flex items-center gap-2 mb-2">
+   475→              <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+   476→                <Activity className="h-4 w-4 text-red-700" />
+   477→              </div>
+   478→              <span className="text-xs text-gray-500">Mortality (Week)</span>
+   479→            </div>
+   480→            <p className="text-2xl font-bold text-gray-900">{data.thisWeek.mortality}</p>
+   481→            <p className="text-xs text-gray-500">This month: {data.thisMonth.mortality} birds lost</p>
+   482→          </CardContent>
+   483→        </Card>
+   484→      </div>
+   485→
+   486→      {/* Secondary KPIs — Lay Rate + Depletion + Population */}
+   487→      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+   488→        <Card>
+   489→          <CardContent className="p-4">
+   490→            <p className="text-xs text-gray-500 mb-1">Today&apos;s Lay Rate</p>
+   491→            <p className="text-xl font-bold text-amber-700">{data.todayLayRate}%</p>
+   492→            <p className="text-[10px] text-gray-400">{data.today.totalEggs} eggs / {data.totalLayerBirds.toLocaleString()} layers</p>
+   493→          </CardContent>
+   494→        </Card>
+   495→        <Card>
+   496→          <CardContent className="p-4">
+   497→            <p className="text-xs text-gray-500 mb-1">Monthly Avg Lay Rate</p>
+   498→            <p className={`text-xl font-bold ${data.monthLayRate >= 70 ? 'text-green-600' : data.monthLayRate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>{data.monthLayRate}%</p>
+   499→            <p className="text-[10px] text-gray-400">avg daily eggs per layer bird</p>
+   500→          </CardContent>
+   501→        </Card>
+   502→        <Card>
+   503→          <CardContent className="p-4">
+   504→            <p className="text-xs text-gray-500 mb-1">Total Population</p>
+   505→            <p className="text-xl font-bold text-purple-700">{data.totalBirds.toLocaleString()}</p>
+   506→            <p className="text-[10px] text-gray-400">{data.totalLayerBirds.toLocaleString()} layers, {data.totalFlocks} flocks</p>
+   507→          </CardContent>
+   508→        </Card>
+   509→        <Card>
+   510→          <CardContent className="p-4">
+   511→            <p className="text-xs text-gray-500 mb-1">Population Depletion</p>
+   512→            <p className={`text-xl font-bold ${data.totalDepletion > 5 ? 'text-red-600' : data.totalDepletion > 2 ? 'text-amber-600' : 'text-gray-700'}`}>{data.totalDepletion}%</p>
+   513→            <p className="text-[10px] text-gray-400">total loss from sales + deaths</p>
+   514→          </CardContent>
+   515→        </Card>
+   516→      </div>
+   517→
+   518→      {/* Tertiary KPIs */}
+   519→      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+   520→        <Card>
+   521→          <CardContent className="p-4">
+   522→            <p className="text-xs text-gray-500 mb-1">Weekly Egg Collection</p>
+   523→            <p className="text-xl font-bold text-gray-900">{data.thisWeek.eggCrates} crates</p>
+   524→          </CardContent>
+   525→        </Card>
+   526→        <Card>
+   527→          <CardContent className="p-4">
+   528→            <p className="text-xs text-gray-500 mb-1">Monthly Egg Sales</p>
+   529→            <p className="text-xl font-bold text-gray-900">{data.thisMonth.eggsSold.toLocaleString()} eggs</p>
+   530→            <p className="text-xs text-emerald-600">{formatGHS(data.thisMonth.eggRevenue)}</p>
+   531→          </CardContent>
+   532→        </Card>
+   533→        <Card>
+   534→          <CardContent className="p-4">
+   535→            <p className="text-xs text-gray-500 mb-1">Birds Sold (Month)</p>
+   536→            <p className="text-xl font-bold text-gray-900">{data.thisMonth.birdsSold}</p>
+   537→            <p className="text-xs text-emerald-600">{formatGHS(data.thisMonth.birdRevenue)}</p>
+   538→          </CardContent>
+   539→        </Card>
+   540→        <Card>
+   541→          <CardContent className="p-4">
+   542→            <p className="text-xs text-gray-500 mb-1">Monthly Expenses</p>
+   543→            <p className="text-xl font-bold text-red-600">{formatGHS(data.thisMonth.expenses)}</p>
+   544→          </CardContent>
+   545→        </Card>
+   546→      </div>
+   547→
+   548→      {/* Charts & Farm Breakdown */}
+   549→      <Tabs defaultValue="production" className="w-full">
+   550→        <TabsList className="grid grid-cols-3 w-full">
+   551→          <TabsTrigger value="production">Egg Production</TabsTrigger>
+   552→          <TabsTrigger value="expenses">Expense Breakdown</TabsTrigger>
+   553→          <TabsTrigger value="farms">Farm Overview</TabsTrigger>
+   554→        </TabsList>
+   555→
+   556→        <TabsContent value="production">
+   557→          <Card>
+   558→            <CardHeader className="pb-2">
+   559→              <CardTitle className="text-base">Daily Egg Production (Last 7 Days)</CardTitle>
+   560→              <CardDescription>Crates collected per day across all farms</CardDescription>
+   561→            </CardHeader>
+   562→            <CardContent>
+   563→              <div className="h-64 md:h-72">
+   564→                <ResponsiveContainer width="100%" height="100%">
+   565→                  <BarChart data={data.dailyEggTrend}>
+   566→                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+   567→                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+   568→                    <YAxis tick={{ fontSize: 12 }} />
+   569→                    <Tooltip formatter={(value: number) => [`${value} crates`, 'Eggs']} />
+   570→                    <Bar dataKey="crates" fill="#16a34a" radius={[6, 6, 0, 0]} />
+   571→                  </BarChart>
+   572→                </ResponsiveContainer>
+   573→              </div>
+   574→            </CardContent>
+   575→          </Card>
+   576→        </TabsContent>
+   577→
+   578→        <TabsContent value="expenses">
+   579→          <Card>
+   580→            <CardHeader className="pb-2">
+   581→              <CardTitle className="text-base">Expense Categories (This Month)</CardTitle>
+   582→              <CardDescription>Distribution of farm expenses by category</CardDescription>
+   583→            </CardHeader>
+   584→            <CardContent>
+   585→              {hasExpenses ? (
+   586→                <div className="h-64 md:h-72">
+   587→                  <ResponsiveContainer width="100%" height="100%">
+   588→                    <PieChart>
+   589→                      <Pie
+   590→                        data={expensePieData}
+   591→                        cx="50%"
+   592→                        cy="50%"
+   593→                        outerRadius={80}
+   594→                        innerRadius={40}
+   595→                        paddingAngle={3}
+   596→                        dataKey="value"
+   597→                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+   598→                      >
+   599→                        {expensePieData.map((_, idx) => (
+   600→                          <Cell key={`cell-${idx}`} fill={COLORS[idx % COLORS.length]} />
+   601→                        ))}
+   602→                      </Pie>
+   603→                      <Tooltip formatter={(value: number) => formatGHS(value)} />
+   604→                    </PieChart>
+   605→                  </ResponsiveContainer>
+   606→                </div>
+   607→              ) : (
+   608→                <p className="text-center text-gray-400 py-8">No expense data for this period</p>
+   609→              )}
+   610→            </CardContent>
+   611→          </Card>
+   612→        </TabsContent>
+   613→
+   614→        <TabsContent value="farms">
+   615→          <Card>
+   616→            <CardHeader className="pb-2">
+   617→              <CardTitle className="text-base">Farm Performance Overview</CardTitle>
+   618→              <CardDescription>Per-farm revenue, expenses, and profit this month</CardDescription>
+   619→            </CardHeader>
+   620→            <CardContent>
+   621→              <ScrollArea className="max-h-96">
+   622→                <div className="space-y-3">
+   623→                  {data.farmBreakdown.map((farm: any) => (
+   624→                    <div key={farm.farmId} className="border rounded-lg p-3 md:p-4">
+   625→                      <div className="flex items-center gap-2 mb-3">
+   626→                        <MapPin className="h-4 w-4 text-green-600" />
+   627→                        <div>
+   628→                          <p className="font-semibold text-sm">{farm.farmName}</p>
+   629→                          <p className="text-xs text-gray-500">{farm.location}</p>
+   630→                        </div>
+   631→                        <Badge className="ml-auto" variant={farm.monthProfit >= 0 ? 'default' : 'destructive'}>
+   632→                          {formatGHS(farm.monthProfit)}
+   633→                        </Badge>
+   634→                      </div>
+   635→                      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+   636→                        <div>
+   637→                          <p className="text-gray-500">Birds</p>
+   638→                          <p className="font-medium">{farm.birdCount.toLocaleString()}</p>
+   639→                        </div>
+   640→                        <div>
+   641→                          <p className="text-gray-500">Lay Rate</p>
+   642→                          <p className={`font-medium ${farm.todayLayRate >= 70 ? 'text-green-600' : farm.todayLayRate >= 50 ? 'text-amber-600' : 'text-gray-600'}`}>{farm.todayLayRate}%</p>
+   643→                        </div>
+   644→                        <div>
+   645→                          <p className="text-gray-500">Egg Crates</p>
+   646→                          <p className="font-medium">{farm.monthEggCrates}</p>
+   647→                        </div>
+   648→                        <div>
+   649→                          <p className="text-gray-500">Revenue</p>
+   650→                          <p className="font-medium text-emerald-700">{formatGHS(farm.monthEggRevenue + farm.monthBirdRevenue)}</p>
+   651→                        </div>
+   652→                        <div>
+   653→                          <p className="text-gray-500">Expenses</p>
+   654→                          <p className="font-medium text-red-600">{formatGHS(farm.monthExpenses)}</p>
+   655→                        </div>
+   656→                      </div>
+   657→                      {/* Per-flock breakdown */}
+   658→                      {farm.flockDetails && farm.flockDetails.length > 0 && (
+   659→                        <div className="mt-3 pt-3 border-t">
+   660→                          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Flocks</p>
+   661→                          <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+   662→                            {farm.flockDetails.map((fl: any) => (
+   663→                              <div key={fl.id} className="flex items-center gap-2 bg-gray-50 rounded p-2 text-xs">
+   664→                                <Bird className={`h-3.5 w-3.5 shrink-0 ${fl.birdType === 'Layer' ? 'text-amber-600' : 'text-blue-600'}`} />
+   665→                                <div className="flex-1 min-w-0">
+   666→                                  <p className="font-medium truncate">{fl.name}</p>
+   667→                                  <p className="text-[10px] text-gray-400">{fl.breed || fl.birdType} &middot; {fl.currentAgeWeeks}wks</p>
+   668→                                </div>
+   669→                                <div className="text-right shrink-0">
+   670→                                  <p className="font-semibold">{fl.birdCount.toLocaleString()}</p>
+   671→                                  {fl.losses > 0 && (
+   672→                                    <p className="text-[10px] text-red-500">-{fl.losses} ({fl.lossPercent}%)</p>
+   673→                                  )}
+   674→                                </div>
+   675→                              </div>
+   676→                            ))}
+   677→                          </div>
+   678→                        </div>
+   679→                      )}
+   680→                    </div>
+   681→                  ))}
+   682→                </div>
+   683→              </ScrollArea>
+   684→            </CardContent>
+   685→          </Card>
+   686→        </TabsContent>
+   687→      </Tabs>
+   688→
+   689→      {/* ============================================================
+   690→         DANGER ZONE — clearly separated from vaccinations and reports
+   691→         All destructive CEO actions live here, never mixed with
+   692→         vaccination schedule or other operational content.
+   693→      ============================================================ */}
+   694→      <div className="mt-2">
+   695→        <div className="flex items-center gap-2 mb-3 px-1">
+   696→          <div className="h-px flex-1 bg-red-200" />
+   697→          <span className="text-[10px] font-bold tracking-[0.2em] text-red-600 uppercase">
+   698→            Danger Zone
+   699→          </span>
+   700→          <div className="h-px flex-1 bg-red-200" />
+   701→        </div>
+   702→
+   703→        <Card className="border-2 border-red-300 bg-red-50/30">
+   704→          <CardHeader className="pb-2">
+   705→            <CardTitle className="text-base flex items-center gap-2 text-red-700">
+   706→              <Trash2 className="h-4 w-4" />
+   707→              Reset Farm Records (CEO Only)
+   708→            </CardTitle>
+   709→            <CardDescription className="text-xs">
+   710→              Reset individual record types to zero, or perform a full wipe of ALL data. These actions are irreversible.
+   711→            </CardDescription>
+   712→          </CardHeader>
+   713→          <CardContent className="space-y-3">
+   714→            {/* Per-record reset buttons */}
+   715→            <div>
+   716→              <p className="text-[11px] font-medium text-red-700 mb-2">
+   717→                Reset individual record types (zeros out numbers, keeps records): 
+   718→              </p>
+   719→              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+   720→                {['DailyEggCollection', 'BirdMortality', 'FeedRecord', 'EggSale', 'BirdSale', 'Expense', 'Vaccination', 'Treatment', 'HealthCheck'].map(type => {
+   721→                  const labels: Record<string, string> = {
+   722→                    DailyEggCollection: 'Egg Collections',
+   723→                    BirdMortality: 'Mortality Records',
+   724→                    FeedRecord: 'Feed Records',
+   725→                    EggSale: 'Egg Sales',
+   726→                    BirdSale: 'Bird Sales',
+   727→                    Expense: 'Expenses',
+   728→                    Vaccination: 'Vaccinations',
+   729→                    Treatment: 'Treatments',
+   730→                    HealthCheck: 'Health Checks',
+   731→                  }
+   732→                  return (
+   733→                    <Button
+   734→                      key={type}
+   735→                      size="sm"
+   736→                      variant="outline"
+   737→                      className="h-9 text-xs border-red-200 text-red-600 hover:bg-red-100 hover:text-red-700 gap-1 justify-start"
+   738→                      disabled={resetLoading === type}
+   739→                      onClick={() => handleDataReset(type)}
+   740→                    >
+   741→                      {resetLoading === type ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+   742→                      Reset {labels[type]}
+   743→                    </Button>
+   744→                  )
+   745→                })}
+   746→              </div>
+   747→            </div>
+   748→
+   749→            <Separator className="bg-red-200" />
+   750→
+   751→            {/* Full wipe CTA */}
+   752→            <div className="bg-red-100 border border-red-300 rounded-lg p-3">
+   753→              <p className="text-xs font-medium text-red-900 mb-1 flex items-center gap-1.5">
+   754→                <AlertTriangle className="h-3.5 w-3.5" />
+   755→                Wipe ALL Data (Full Reset)
+   756→              </p>
+   757→              <p className="text-[11px] text-red-700 mb-2">
+   758→                Permanently delete every record, farm, customer, and announcement. Only your CEO account remains. Use this for a fresh start.
+   759→              </p>
+   760→              <a href="#" onClick={(e) => { e.preventDefault(); const el = document.querySelector('[data-value="settings"]') as HTMLElement; el?.click(); setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 100); }}>
+   761→                <Button variant="destructive" size="sm" className="h-9 text-xs gap-1.5 w-full sm:w-auto">
+   762→                  <RotateCcw className="h-3.5 w-3.5" />
+   763→                  Go to Full Data Reset
+   764→                </Button>
+   765→              </a>
+   766→            </div>
+   767→          </CardContent>
+   768→        </Card>
+   769→
+   770→        <div className="flex items-center gap-2 mt-3 mb-3 px-1">
+   771→          <div className="h-px flex-1 bg-gray-200" />
+   772→          <span className="text-[10px] font-bold tracking-[0.2em] text-gray-400 uppercase">
+   773→            Operations
+   774→          </span>
+   775→          <div className="h-px flex-1 bg-gray-200" />
+   776→        </div>
+   777→      </div>
+   778→
+   779→      {/* Vaccination Alerts & Upcoming — clearly BELOW the Danger Zone separator */}
+   780→      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+   781→        <Card>
+   782→          <CardHeader className="pb-2">
+   783→            <CardTitle className="text-base flex items-center gap-2">
+   784→              <AlertTriangle className="h-4 w-4 text-red-500" />
+   785→              Overdue Vaccinations
+   786→            </CardTitle>
+   787→          </CardHeader>
+   788→          <CardContent>
+   789→            {data.overdueVaccinations.length === 0 ? (
+   790→              <p className="text-sm text-gray-400 text-center py-4">No overdue vaccinations</p>
+   791→            ) : (
+   792→              <ScrollArea className="max-h-48">
+   793→                <div className="space-y-2">
+   794→                  {data.overdueVaccinations.map((v: any) => (
+   795→                    <div key={v.id} className="flex items-center gap-2 p-2 bg-red-50 rounded-lg text-sm">
+   796→                      <Badge variant="destructive">Overdue</Badge>
+   797→                      <div className="flex-1">
+   798→                        <p className="font-medium">{v.vaccineName}</p>
+   799→                        <p className="text-xs text-gray-500">{v.flock?.name} at {v.farm?.name}</p>
+   800→                      </div>
+   801→                      <p className="text-xs text-red-600">Due: {new Date(v.scheduledDate).toLocaleDateString('en-GB')}</p>
+   802→                    </div>
+   803→                  ))}
+   804→                </div>
+   805→              </ScrollArea>
+   806→            )}
+   807→          </CardContent>
+   808→        </Card>
+   809→
+   810→        <Card>
+   811→          <CardHeader className="pb-2">
+   812→            <CardTitle className="text-base flex items-center gap-2">
+   813→              <CheckCircle2 className="h-4 w-4 text-green-500" />
+   814→              Upcoming Vaccinations
+   815→            </CardTitle>
+   816→          </CardHeader>
+   817→          <CardContent>
+   818→            {data.upcomingVaccinations.length === 0 ? (
+   819→              <p className="text-sm text-gray-400 text-center py-4">No upcoming vaccinations</p>
+   820→            ) : (
+   821→              <ScrollArea className="max-h-48">
+   822→                <div className="space-y-2">
+   823→                  {data.upcomingVaccinations.map((v: any) => (
+   824→                    <div key={v.id} className="flex items-center gap-2 p-2 bg-green-50 rounded-lg text-sm">
+   825→                      <Badge variant="secondary">Scheduled</Badge>
+   826→                      <div className="flex-1">
+   827→                        <p className="font-medium">{v.vaccineName}</p>
+   828→                        <p className="text-xs text-gray-500">{v.flock?.name} at {v.farm?.name}</p>
+   829→                      </div>
+   830→                      <p className="text-xs text-green-600">{new Date(v.scheduledDate).toLocaleDateString('en-GB')}</p>
+   831→                    </div>
+   832→                  ))}
+   833→                </div>
+   834→              </ScrollArea>
+   835→            )}
+   836→          </CardContent>
+   837→        </Card>
+   838→      </div>
+   839→
+   840→      {/* Live Sync Bar */}
+   841→      <div className="flex items-center justify-between">
+   842→        <LiveSyncIndicator
+   843→          endpoints={['/api/dashboard']}
+   844→          interval={10000}
+   845→          onData={handleAutoData}
+   846→        />
+   847→        <Button variant="outline" size="sm" onClick={fetchDashboard}>
+   848→          <RefreshCw className="h-3 w-3 mr-1" /> Refresh
+   849→        </Button>
+   850→      </div>
+   851→    </div>
+   852→  )
+   853→}
+   854→

@@ -1,0 +1,850 @@
+     1→'use client'
+     2→
+     3→import { useEffect, useState, useCallback } from 'react'
+     4→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+     5→import { Button } from '@/components/ui/button'
+     6→import { Input } from '@/components/ui/input'
+     7→import { Label } from '@/components/ui/label'
+     8→import { Separator } from '@/components/ui/separator'
+     9→import { useAppStore } from '@/store/app'
+    10→import { toast } from 'sonner'
+    11→import {
+    12→  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
+    13→} from '@/components/ui/dialog'
+    14→import {
+    15→  Settings, Building2, Plus, Trash2, Pencil, Loader2, Check, X, AlertTriangle,
+    16→  RotateCcw, MapPin, Phone, Navigation, Bird, ChevronDown, ChevronUp
+    17→} from 'lucide-react'
+    18→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    19→import { ScrollArea } from '@/components/ui/scroll-area'
+    20→import { Badge } from '@/components/ui/badge'
+    21→
+    22→interface FarmInfo {
+    23→  id: string
+    24→  name: string
+    25→  location: string
+    26→  address?: string
+    27→  phone?: string
+    28→  isActive: boolean
+    29→}
+    30→
+    31→// ============ FARM NAME EDITOR ============
+    32→function FarmNameEditor() {
+    33→  const { currentUser } = useAppStore()
+    34→  const [farmName, setFarmName] = useState('')
+    35→  const [savedName, setSavedName] = useState('')
+    36→  const [editing, setEditing] = useState(false)
+    37→  const [saving, setSaving] = useState(false)
+    38→
+    39→  const fetchSettings = useCallback(async () => {
+    40→    try {
+    41→      const res = await fetch('/api/reset', {
+    42→        method: 'POST',
+    43→        headers: { 'Content-Type': 'application/json' },
+    44→        body: JSON.stringify({ action: 'getFarmName', role: currentUser?.role }),
+    45→      })
+    46→      if (res.ok) {
+    47→        const data = await res.json()
+    48→        setFarmName(data.farmName)
+    49→        setSavedName(data.farmName)
+    50→      }
+    51→    } catch {}
+    52→  }, [currentUser?.role])
+    53→
+    54→  useEffect(() => { fetchSettings() }, [fetchSettings])
+    55→
+    56→  const handleSave = async () => {
+    57→    if (!farmName.trim() || farmName.trim().length < 2) {
+    58→      toast.error('Farm name must be at least 2 characters')
+    59→      return
+    60→    }
+    61→    setSaving(true)
+    62→    try {
+    63→      const res = await fetch('/api/reset', {
+    64→        method: 'POST',
+    65→        headers: { 'Content-Type': 'application/json' },
+    66→        body: JSON.stringify({ action: 'updateFarmName', farmName: farmName.trim(), role: currentUser?.role }),
+    67→      })
+    68→      if (res.ok) {
+    69→        toast.success('Farm name updated successfully')
+    70→        setSavedName(farmName.trim())
+    71→        setEditing(false)
+    72→      } else {
+    73→        const err = await res.json().catch(() => ({}))
+    74→        toast.error(err.error || 'Failed to update farm name')
+    75→      }
+    76→    } catch {
+    77→      toast.error('Network error')
+    78→    } finally {
+    79→      setSaving(false)
+    80→    }
+    81→  }
+    82→
+    83→  return (
+    84→    <Card>
+    85→      <CardHeader className="pb-2">
+    86→        <CardTitle className="text-base flex items-center gap-2">
+    87→          <Settings className="h-4 w-4 text-amber-600" />
+    88→          Farm Name
+    89→        </CardTitle>
+    90→        <CardDescription className="text-xs">
+    91→          This name appears across all dashboards, login screens, and reports.
+    92→        </CardDescription>
+    93→      </CardHeader>
+    94→      <CardContent>
+    95→        {editing ? (
+    96→          <div className="space-y-3">
+    97→            <div>
+    98→              <Label className="text-xs">Farm / Business Name</Label>
+    99→              <Input
+   100→                value={farmName}
+   101→                onChange={e => setFarmName(e.target.value)}
+   102→                placeholder="Enter farm name"
+   103→                className="h-9 text-sm"
+   104→                autoFocus
+   105→              />
+   106→            </div>
+   107→            <div className="flex gap-2">
+   108→              <Button size="sm" onClick={handleSave} disabled={saving} className="h-8 text-xs">
+   109→                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+   110→                Save
+   111→              </Button>
+   112→              <Button size="sm" variant="outline" onClick={() => { setFarmName(savedName); setEditing(false) }} className="h-8 text-xs">
+   113→                <X className="h-3 w-3 mr-1" /> Cancel
+   114→              </Button>
+   115→            </div>
+   116→          </div>
+   117→        ) : (
+   118→          <div className="flex items-center justify-between">
+   119→            <div>
+   120→              <p className="text-sm font-medium text-gray-900">{savedName}</p>
+   121→              <p className="text-[10px] text-gray-500">Currently displayed across the system</p>
+   122→            </div>
+   123→            <Button size="sm" variant="outline" onClick={() => setEditing(true)} className="h-8 text-xs gap-1">
+   124→              <Pencil className="h-3 w-3" /> Edit
+   125→            </Button>
+   126→          </div>
+   127→        )}
+   128→      </CardContent>
+   129→    </Card>
+   130→  )
+   131→}
+   132→
+   133→// ============ FARM LOCATIONS MANAGER ============
+   134→function FarmLocationsManager() {
+   135→  const { currentUser } = useAppStore()
+   136→  const [farms, setFarms] = useState<FarmInfo[]>([])
+   137→  const [loading, setLoading] = useState(true)
+   138→  const [addOpen, setAddOpen] = useState(false)
+   139→  const [editFarm, setEditFarm] = useState<FarmInfo | null>(null)
+   140→  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+   141→  const [saving, setSaving] = useState(false)
+   142→
+   143→  const [newName, setNewName] = useState('')
+   144→  const [newLocation, setNewLocation] = useState('')
+   145→  const [newAddress, setNewAddress] = useState('')
+   146→  const [newPhone, setNewPhone] = useState('')
+   147→
+   148→  const fetchFarms = useCallback(async () => {
+   149→    setLoading(true)
+   150→    try {
+   151→      const res = await fetch('/api/farms')
+   152→      if (res.ok) setFarms(await res.json())
+   153→    } catch {} finally {
+   154→      setLoading(false)
+   155→    }
+   156→  }, [])
+   157→
+   158→  useEffect(() => { fetchFarms() }, [fetchFarms])
+   159→
+   160→  const handleAddFarm = async () => {
+   161→    if (!newName.trim() || !newLocation.trim()) {
+   162→      toast.error('Farm name and location are required')
+   163→      return
+   164→    }
+   165→    setSaving(true)
+   166→    try {
+   167→      const res = await fetch('/api/farms', {
+   168→        method: 'POST',
+   169→        headers: { 'Content-Type': 'application/json' },
+   170→        body: JSON.stringify({
+   171→          name: newName.trim(),
+   172→          location: newLocation.trim(),
+   173→          address: newAddress.trim() || undefined,
+   174→          phone: newPhone.trim() || undefined,
+   175→        }),
+   176→      })
+   177→      if (res.ok) {
+   178→        toast.success(`Farm "${newName.trim()}" added successfully`)
+   179→        setAddOpen(false)
+   180→        setNewName(''); setNewLocation(''); setNewAddress(''); setNewPhone('')
+   181→        fetchFarms()
+   182→      } else {
+   183→        const err = await res.json().catch(() => ({}))
+   184→        toast.error(err.error || 'Failed to add farm')
+   185→      }
+   186→    } catch {
+   187→      toast.error('Network error')
+   188→    } finally {
+   189→      setSaving(false)
+   190→    }
+   191→  }
+   192→
+   193→  const handleRenameFarm = async (farm: FarmInfo, newNameVal: string) => {
+   194→    if (!newNameVal.trim() || newNameVal.trim().length < 2) {
+   195→      toast.error('Farm name must be at least 2 characters')
+   196→      return
+   197→    }
+   198→    setSaving(true)
+   199→    try {
+   200→      const res = await fetch('/api/farms', {
+   201→        method: 'PUT',
+   202→        headers: { 'Content-Type': 'application/json' },
+   203→        body: JSON.stringify({ id: farm.id, name: newNameVal.trim() }),
+   204→      })
+   205→      if (res.ok) {
+   206→        toast.success('Farm renamed successfully')
+   207→        setEditFarm(null)
+   208→        fetchFarms()
+   209→      } else {
+   210→        const err = await res.json().catch(() => ({}))
+   211→        toast.error(err.error || 'Failed to rename farm')
+   212→      }
+   213→    } catch {
+   214→      toast.error('Network error')
+   215→    } finally {
+   216→      setSaving(false)
+   217→    }
+   218→  }
+   219→
+   220→  const handleDeleteFarm = async (farmId: string) => {
+   221→    setSaving(true)
+   222→    try {
+   223→      const res = await fetch('/api/farms', {
+   224→        method: 'PUT',
+   225→        headers: { 'Content-Type': 'application/json' },
+   226→        body: JSON.stringify({ id: farmId, action: 'delete' }),
+   227→      })
+   228→      if (res.ok) {
+   229→        toast.success('Farm removed. All existing records for this farm are preserved.')
+   230→        setDeleteConfirm(null)
+   231→        fetchFarms()
+   232→      } else {
+   233→        const err = await res.json().catch(() => ({}))
+   234→        toast.error(err.error || 'Failed to remove farm')
+   235→      }
+   236→    } catch {
+   237→      toast.error('Network error')
+   238→    } finally {
+   239→      setSaving(false)
+   240→    }
+   241→  }
+   242→
+   243→  return (
+   244→    <Card>
+   245→      <CardHeader className="pb-2">
+   246→        <div className="flex items-center justify-between">
+   247→          <div>
+   248→            <CardTitle className="text-base flex items-center gap-2">
+   249→              <Building2 className="h-4 w-4 text-green-600" />
+   250→              Farm Locations
+   251→            </CardTitle>
+   252→            <CardDescription className="text-xs mt-1">
+   253→              Add, rename, or remove individual farm locations. Removing a farm hides it from dropdowns but keeps all records.
+   254→            </CardDescription>
+   255→          </div>
+   256→          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+   257→            <DialogTrigger asChild>
+   258→              <Button size="sm" className="h-8 text-xs gap-1">
+   259→                <Plus className="h-3 w-3" /> Add Farm
+   260→              </Button>
+   261→            </DialogTrigger>
+   262→            <DialogContent className="max-w-md">
+   263→              <DialogHeader>
+   264→                <DialogTitle>Add New Farm Location</DialogTitle>
+   265→                <DialogDescription>Create a new farm site in the system.</DialogDescription>
+   266→              </DialogHeader>
+   267→              <div className="space-y-3 mt-2">
+   268→                <div className="grid grid-cols-2 gap-3">
+   269→                  <div>
+   270→                    <Label className="text-xs">Farm Name *</Label>
+   271→                    <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Sunyani Farm" className="h-9 text-sm" />
+   272→                  </div>
+   273→                  <div>
+   274→                    <Label className="text-xs">Location / Region *</Label>
+   275→                    <Input value={newLocation} onChange={e => setNewLocation(e.target.value)} placeholder="e.g. Sunyani, Bono Region" className="h-9 text-sm" />
+   276→                  </div>
+   277→                </div>
+   278→                <div>
+   279→                  <Label className="text-xs">Address</Label>
+   280→                  <Input value={newAddress} onChange={e => setNewAddress(e.target.value)} placeholder="Street address (optional)" className="h-9 text-sm" />
+   281→                </div>
+   282→                <div>
+   283→                  <Label className="text-xs">Phone</Label>
+   284→                  <Input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="+233 ..." className="h-9 text-sm" />
+   285→                </div>
+   286→                <Button onClick={handleAddFarm} disabled={saving} className="w-full h-9">
+   287→                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
+   288→                  {saving ? 'Adding...' : 'Add Farm Location'}
+   289→                </Button>
+   290→              </div>
+   291→            </DialogContent>
+   292→          </Dialog>
+   293→        </div>
+   294→      </CardHeader>
+   295→      <CardContent>
+   296→        <div className="bg-green-50 border border-green-200 rounded-lg p-2 mb-3">
+   297→          <p className="text-[11px] text-green-800">
+   298→            <Building2 className="h-3 w-3 inline mr-1" />
+   299→            You currently have {farms.filter(f => f.isActive).length} active farm location{farms.filter(f => f.isActive).length !== 1 ? 's' : ''}.
+   300→            Add more sites as your operation grows.
+   301→          </p>
+   302→        </div>
+   303→        <div className="space-y-2">
+   304→          {loading && !farms.length ? (
+   305→            <p className="text-sm text-gray-400 text-center py-4">Loading farms...</p>
+   306→          ) : farms.filter(f => f.isActive).length === 0 ? (
+   307→            <p className="text-sm text-gray-400 text-center py-4">No active farms. Add one above.</p>
+   308→          ) : (
+   309→            farms.filter(f => f.isActive).map(farm => (
+   310→              <div key={farm.id} className="border rounded-lg p-3">
+   311→                {editFarm?.id === farm.id ? (
+   312→                  <div className="space-y-2">
+   313→                    <Input
+   314→                      value={editFarm.name}
+   315→                      onChange={e => setEditFarm({ ...editFarm, name: e.target.value })}
+   316→                      className="h-8 text-sm"
+   317→                      autoFocus
+   318→                    />
+   319→                    <div className="flex gap-1">
+   320→                      <Button size="sm" onClick={() => handleRenameFarm(farm, editFarm.name)}
+   321→                        disabled={saving || !editFarm.name.trim()} className="h-7 text-xs gap-1">
+   322→                        {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+   323→                        Save
+   324→                      </Button>
+   325→                      <Button size="sm" variant="ghost" onClick={() => setEditFarm(null)} className="h-7 text-xs">
+   326→                        Cancel
+   327→                      </Button>
+   328→                    </div>
+   329→                  </div>
+   330→                ) : (
+   331→                  <div className="flex items-start justify-between">
+   332→                    <div>
+   333→                      <p className="font-medium text-sm">{farm.name}</p>
+   334→                      <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-500">
+   335→                        <span className="flex items-center gap-1">
+   336→                          <Navigation className="h-3 w-3" /> {farm.location}
+   337→                        </span>
+   338→                        {farm.phone && (
+   339→                          <span className="flex items-center gap-1">
+   340→                            <Phone className="h-3 w-3" /> {farm.phone}
+   341→                          </span>
+   342→                        )}
+   343→                      </div>
+   344→                      {farm.address && (
+   345→                        <p className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+   346→                          <MapPin className="h-3 w-3" /> {farm.address}
+   347→                        </p>
+   348→                      )}
+   349→                    </div>
+   350→                    <div className="flex items-center gap-1 shrink-0">
+   351→                      <Button size="sm" variant="outline" className="h-7 text-xs px-2 gap-1"
+   352→                        onClick={() => setEditFarm(farm)}>
+   353→                        <Pencil className="h-3 w-3" /> Rename
+   354→                      </Button>
+   355→                      <Button size="sm" variant="ghost" className="h-7 text-xs px-2 text-red-500 hover:text-red-700"
+   356→                        onClick={() => setDeleteConfirm(farm.id)}>
+   357→                        <Trash2 className="h-3 w-3" /> Remove
+   358→                      </Button>
+   359→                    </div>
+   360→                  </div>
+   361→                )}
+   362→              </div>
+   363→            ))
+   364→          )}
+   365→        </div>
+   366→
+   367→        {/* Inactive farms */}
+   368→        {farms.filter(f => !f.isActive).length > 0 && (
+   369→          <div className="mt-3">
+   370→            <Separator className="mb-2" />
+   371→            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Removed Farms (data preserved)</p>
+   372→            <div className="space-y-1">
+   373→              {farms.filter(f => !f.isActive).map(farm => (
+   374→                <div key={farm.id} className="flex items-center gap-2 p-2 bg-gray-100 rounded-lg text-xs">
+   375→                  <div className="w-6 h-6 bg-gray-300 rounded flex items-center justify-center">
+   376→                    <Building2 className="h-3 w-3 text-gray-500" />
+   377→                  </div>
+   378→                  <div className="flex-1">
+   379→                    <p className="font-medium text-gray-500">{farm.name}</p>
+   380→                    <p className="text-[10px] text-gray-400">{farm.location}</p>
+   381→                  </div>
+   382→                </div>
+   383→              ))}
+   384→            </div>
+   385→          </div>
+   386→        )}
+   387→      </CardContent>
+   388→
+   389→      {/* Delete Confirmation */}
+   390→      {deleteConfirm && (
+   391→        <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
+   392→          <DialogContent className="max-w-sm">
+   393→            <DialogHeader>
+   394→              <DialogTitle className="text-base">Remove Farm Location</DialogTitle>
+   395→              <DialogDescription className="text-sm">
+   396→                Are you sure you want to remove this farm? It will be hidden from all dropdowns and dashboards.
+   397→              </DialogDescription>
+   398→            </DialogHeader>
+   399→            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+   400→              <AlertTriangle className="h-3 w-3 inline mr-1" />
+   401→              All existing records (egg collections, sales, feed records, etc.) for this farm will be preserved in the database. The farm just won&apos;t appear in menus.
+   402→            </div>
+   403→            <div className="flex gap-2 mt-3">
+   404→              <Button variant="destructive" className="flex-1 h-9" onClick={() => handleDeleteFarm(deleteConfirm)} disabled={saving}>
+   405→                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3 mr-1" />}
+   406→                {saving ? 'Removing...' : 'Remove Farm'}
+   407→              </Button>
+   408→              <Button variant="outline" className="h-9" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+   409→            </div>
+   410→          </DialogContent>
+   411→        </Dialog>
+   412→      )}
+   413→    </Card>
+   414→  )
+   415→}
+   416→
+   417→// ============ BIRD FLOCK / POPULATION MANAGER ============
+   418→function BirdFlockManager() {
+   419→  const [farms, setFarms] = useState<FarmInfo[]>([])
+   420→  const [flocks, setFlocks] = useState<any[]>([])
+   421→  const [loading, setLoading] = useState(true)
+   422→  const [saving, setSaving] = useState(false)
+   423→  const [expandedFarm, setExpandedFarm] = useState<string | null>(null)
+   424→
+   425→  // Add flock form
+   426→  const [addOpen, setAddOpen] = useState(false)
+   427→  const [newFarmId, setNewFarmId] = useState('')
+   428→  const [newName, setNewName] = useState('')
+   429→  const [newType, setNewType] = useState('Layer')
+   430→  const [newBreed, setNewBreed] = useState('Bovan Brown')
+   431→  const [newCount, setNewCount] = useState('')
+   432→  const [newAge, setNewAge] = useState('')
+   433→  const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0])
+   434→  const [newNotes, setNewNotes] = useState('')
+   435→
+   436→  const fetchData = useCallback(async () => {
+   437→    setLoading(true)
+   438→    try {
+   439→      const [farmsRes, flocksRes] = await Promise.all([
+   440→        fetch('/api/farms'),
+   441→        fetch('/api/flocks'),
+   442→      ])
+   443→      if (farmsRes.ok) setFarms(await farmsRes.json())
+   444→      if (flocksRes.ok) setFlocks(await flocksRes.json())
+   445→    } catch {} finally {
+   446→      setLoading(false)
+   447→    }
+   448→  }, [])
+   449→
+   450→  useEffect(() => { fetchData() }, [fetchData])
+   451→
+   452→  const handleAddFlock = async (e: React.FormEvent) => {
+   453→    e.preventDefault()
+   454→    if (!newFarmId || !newName.trim() || !newCount) {
+   455→      toast.error('Farm, flock name, and bird count are required')
+   456→      return
+   457→    }
+   458→    setSaving(true)
+   459→    try {
+   460→      const res = await fetch('/api/flocks', {
+   461→        method: 'POST',
+   462→        headers: { 'Content-Type': 'application/json' },
+   463→        body: JSON.stringify({
+   464→          farmId: newFarmId,
+   465→          name: newName.trim(),
+   466→          birdType: newType,
+   467→          breed: newBreed,
+   468→          birdCount: parseInt(newCount) || 0,
+   469→          ageWeeks: parseInt(newAge) || 0,
+   470→          dateArrival: newDate || new Date().toISOString(),
+   471→          notes: newNotes.trim() || undefined,
+   472→        }),
+   473→      })
+   474→      if (res.ok) {
+   475→        toast.success(`Flock "${newName.trim()}" added with ${parseInt(newCount).toLocaleString()} birds`)
+   476→        setAddOpen(false)
+   477→        setNewName(''); setNewCount(''); setNewAge(''); setNewNotes('')
+   478→        setNewDate(new Date().toISOString().split('T')[0])
+   479→        fetchData()
+   480→      } else {
+   481→        const err = await res.json().catch(() => ({}))
+   482→        toast.error(err.error || 'Failed to add flock')
+   483→      }
+   484→    } catch { toast.error('Network error') } finally { setSaving(false) }
+   485→  }
+   486→
+   487→  const handleDeactivateFlock = async (flockId: string, flockName: string) => {
+   488→    if (!confirm(`Deactivate flock "${flockName}"? The birds will no longer appear in counts, but all records are preserved.`)) return
+   489→    setSaving(true)
+   490→    try {
+   491→      const res = await fetch('/api/flocks', {
+   492→        method: 'PUT',
+   493→        headers: { 'Content-Type': 'application/json' },
+   494→        body: JSON.stringify({ id: flockId, isActive: false }),
+   495→      })
+   496→      if (res.ok) {
+   497→        toast.success(`Flock "${flockName}" deactivated`)
+   498→        fetchData()
+   499→      } else {
+   500→        toast.error('Failed to deactivate flock')
+   501→      }
+   502→    } catch { toast.error('Network error') } finally { setSaving(false) }
+   503→  }
+   504→
+   505→  // Group flocks by farm
+   506→  const farmsWithFlocks = farms.filter(f => f.isActive).map(farm => ({
+   507→    ...farm,
+   508→    flocks: flocks.filter(fl => fl.farmId === farm.id && fl.isActive),
+   509→  }))
+   510→  const totalBirds = flocks.filter(f => f.isActive).reduce((s, f) => s + f.birdCount, 0)
+   511→  const totalInitial = flocks.filter(f => f.isActive).reduce((s, f) => s + (f.initialBirdCount || f.birdCount), 0)
+   512→  const totalLosses = totalInitial - totalBirds
+   513→
+   514→  return (
+   515→    <Card>
+   516→      <CardHeader className="pb-2">
+   517→        <div className="flex items-center justify-between">
+   518→          <div>
+   519→            <CardTitle className="text-base flex items-center gap-2">
+   520→              <Bird className="h-4 w-4 text-purple-600" />
+   521→              Bird Population per Farm
+   522→            </CardTitle>
+   523→            <CardDescription className="text-xs mt-1">
+   524→              Add flocks/rooms, track bird counts, and monitor depletion from sales and deaths.
+   525→            </CardDescription>
+   526→          </div>
+   527→          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+   528→            <DialogTrigger asChild>
+   529→              <Button size="sm" className="h-8 text-xs gap-1">
+   530→                <Plus className="h-3 w-3" /> Add Flock
+   531→              </Button>
+   532→            </DialogTrigger>
+   533→            <DialogContent className="max-w-lg">
+   534→              <DialogHeader>
+   535→                <DialogTitle>Add Bird Flock / Room</DialogTitle>
+   536→                <DialogDescription>Register a new batch of birds at a farm location.</DialogDescription>
+   537→              </DialogHeader>
+   538→              <form onSubmit={handleAddFlock} className="space-y-3 mt-2">
+   539→                <div className="grid grid-cols-2 gap-3">
+   540→                  <div>
+   541→                    <Label className="text-xs">Farm *</Label>
+   542→                    <Select value={newFarmId} onValueChange={setNewFarmId}>
+   543→                      <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select farm" /></SelectTrigger>
+   544→                      <SelectContent>
+   545→                        {farms.filter(f => f.isActive).map(f => (
+   546→                          <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+   547→                        ))}
+   548→                      </SelectContent>
+   549→                    </Select>
+   550→                  </div>
+   551→                  <div>
+   552→                    <Label className="text-xs">Flock / Room Name *</Label>
+   553→                    <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Layer Room A" className="h-9 text-sm" />
+   554→                  </div>
+   555→                </div>
+   556→                <div className="grid grid-cols-3 gap-3">
+   557→                  <div>
+   558→                    <Label className="text-xs">Bird Type</Label>
+   559→                    <Select value={newType} onValueChange={setNewType}>
+   560→                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+   561→                      <SelectContent>
+   562→                        <SelectItem value="Layer">Layer</SelectItem>
+   563→                        <SelectItem value="Broiler">Broiler</SelectItem>
+   564→                        <SelectItem value="Cockerel">Cockerel</SelectItem>
+   565→                        <SelectItem value="Turkeys">Turkeys</SelectItem>
+   566→                      </SelectContent>
+   567→                    </Select>
+   568→                  </div>
+   569→                  <div>
+   570→                    <Label className="text-xs">Breed</Label>
+   571→                    <Select value={newBreed} onValueChange={setNewBreed}>
+   572→                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+   573→                      <SelectContent>
+   574→                        <SelectItem value="Bovan Brown">Bovan Brown</SelectItem>
+   575→                        <SelectItem value="Lohmann Brown">Lohmann Brown</SelectItem>
+   576→                        <SelectItem value="ISA Brown">ISA Brown</SelectItem>
+   577→                        <SelectItem value="Hy-Line Brown">Hy-Line Brown</SelectItem>
+   578→                        <SelectItem value="Cobb 500">Cobb 500</SelectItem>
+   579→                        <SelectItem value="Ross 308">Ross 308</SelectItem>
+   580→                        <SelectItem value="Sasso">Sasso</SelectItem>
+   581→                        <SelectItem value="Other">Other</SelectItem>
+   582→                      </SelectContent>
+   583→                    </Select>
+   584→                  </div>
+   585→                  <div>
+   586→                    <Label className="text-xs">Age (weeks)</Label>
+   587→                    <Input type="number" min="0" value={newAge} onChange={e => setNewAge(e.target.value)} placeholder="e.g. 20" className="h-9 text-sm" />
+   588→                  </div>
+   589→                </div>
+   590→                <div className="grid grid-cols-2 gap-3">
+   591→                  <div>
+   592→                    <Label className="text-xs">Number of Birds *</Label>
+   593→                    <Input type="number" min="1" required value={newCount} onChange={e => setNewCount(e.target.value)} placeholder="e.g. 2500" className="h-9 text-sm" />
+   594→                  </div>
+   595→                  <div>
+   596→                    <Label className="text-xs">Arrival Date</Label>
+   597→                    <Input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="h-9 text-sm" />
+   598→                  </div>
+   599→                </div>
+   600→                <div>
+   601→                  <Label className="text-xs">Notes</Label>
+   602→                  <Input value={newNotes} onChange={e => setNewNotes(e.target.value)} placeholder="Optional notes" className="h-9 text-sm" />
+   603→                </div>
+   604→                <Button type="submit" disabled={saving} className="w-full h-9">
+   605→                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
+   606→                  {saving ? 'Adding...' : 'Add Flock'}
+   607→                </Button>
+   608→              </form>
+   609→            </DialogContent>
+   610→          </Dialog>
+   611→        </div>
+   612→      </CardHeader>
+   613→      <CardContent>
+   614→        {/* Summary bar */}
+   615→        <div className="grid grid-cols-3 gap-2 mb-4">
+   616→          <div className="bg-purple-50 border border-purple-200 rounded-lg p-2.5 text-center">
+   617→            <p className="text-lg font-bold text-purple-700">{totalBirds.toLocaleString()}</p>
+   618→            <p className="text-[10px] text-purple-600">Live Birds (all farms)</p>
+   619→          </div>
+   620→          <div className="bg-green-50 border border-green-200 rounded-lg p-2.5 text-center">
+   621→            <p className="text-lg font-bold text-green-700">{farmsWithFlocks.filter(f => f.flocks.length > 0).length}</p>
+   622→            <p className="text-[10px] text-green-600">Farms with Flocks</p>
+   623→          </div>
+   624→          <div className={`border rounded-lg p-2.5 text-center ${totalLosses > 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
+   625→            <p className={`text-lg font-bold ${totalLosses > 0 ? 'text-red-600' : 'text-gray-500'}`}>{totalLosses > 0 ? `-${totalLosses.toLocaleString()}` : '0'}</p>
+   626→            <p className={`text-[10px] ${totalLosses > 0 ? 'text-red-500' : 'text-gray-400'}`}>Total Depletion (sales + deaths)</p>
+   627→          </div>
+   628→        </div>
+   629→
+   630→        {/* Per-farm flock list */}
+   631→        <ScrollArea className="max-h-96">
+   632→          <div className="space-y-2">
+   633→            {loading ? (
+   634→              <p className="text-sm text-gray-400 text-center py-4">Loading flocks...</p>
+   635→            ) : farmsWithFlocks.length === 0 ? (
+   636→              <p className="text-sm text-gray-400 text-center py-4">No farms yet. Add a farm location first.</p>
+   637→            ) : (
+   638→              farmsWithFlocks.map(farm => {
+   639→                const farmBirdCount = farm.flocks.reduce((s: number, f: any) => s + f.birdCount, 0)
+   640→                const farmInitial = farm.flocks.reduce((s: number, f: any) => s + (f.initialBirdCount || f.birdCount), 0)
+   641→                const farmLosses = farmInitial - farmBirdCount
+   642→                const isExpanded = expandedFarm === farm.id
+   643→                return (
+   644→                  <div key={farm.id} className="border rounded-lg overflow-hidden">
+   645→                    <button
+   646→                      className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors text-left"
+   647→                      onClick={() => setExpandedFarm(isExpanded ? null : farm.id)}
+   648→                    >
+   649→                      <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center shrink-0">
+   650→                        <Building2 className="h-4 w-4 text-green-700" />
+   651→                      </div>
+   652→                      <div className="flex-1 min-w-0">
+   653→                        <p className="font-semibold text-sm">{farm.name}</p>
+   654→                        <p className="text-[10px] text-gray-500">{farm.location} &middot; {farm.flocks.length} flock{farm.flocks.length !== 1 ? 's' : ''}</p>
+   655→                      </div>
+   656→                      <div className="text-right shrink-0">
+   657→                        <p className="text-lg font-bold">{farmBirdCount.toLocaleString()}</p>
+   658→                        <p className="text-[10px] text-gray-400">birds</p>
+   659→                      </div>
+   660→                      {farmLosses > 0 && (
+   661→                        <div className="text-right shrink-0">
+   662→                          <p className="text-xs font-medium text-red-600">-{farmLosses}</p>
+   663→                          <p className="text-[10px] text-red-400">depleted</p>
+   664→                        </div>
+   665→                      )}
+   666→                      {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+   667→                    </button>
+   668→
+   669→                    {isExpanded && (
+   670→                      <div className="border-t bg-gray-50/50 p-3 space-y-2">
+   671→                        {farm.flocks.length === 0 ? (
+   672→                          <p className="text-xs text-gray-400 text-center py-2">No flocks at this farm yet.</p>
+   673→                        ) : (
+   674→                          farm.flocks.map((flock: any) => (
+   675→                            <div key={flock.id} className="bg-white border rounded-lg p-3">
+   676→                              <div className="flex items-center gap-3">
+   677→                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${flock.birdType === 'Layer' ? 'bg-amber-100' : 'bg-blue-100'}`}>
+   678→                                  <Bird className={`h-4 w-4 ${flock.birdType === 'Layer' ? 'text-amber-700' : 'text-blue-700'}`} />
+   679→                                </div>
+   680→                                <div className="flex-1 min-w-0">
+   681→                                  <div className="flex items-center gap-2">
+   682→                                    <p className="font-semibold text-sm">{flock.name}</p>
+   683→                                    <Badge variant={flock.birdType === 'Layer' ? 'default' : 'secondary'} className="text-[10px]">
+   684→                                      {flock.birdType}
+   685→                                    </Badge>
+   686→                                  </div>
+   687→                                  <p className="text-[10px] text-gray-500">
+   688→                                    {flock.breed || flock.birdType} &middot; Age: {flock.currentAgeWeeks} weeks
+   689→                                  </p>
+   690→                                </div>
+   691→                                <div className="text-right">
+   692→                                  <p className="text-base font-bold">{flock.birdCount.toLocaleString()}</p>
+   693→                                  <p className="text-[10px] text-gray-400">of {flock.initialBirdCount?.toLocaleString()}</p>
+   694→                                </div>
+   695→                                {flock.losses > 0 && (
+   696→                                  <div className="text-right">
+   697→                                    <p className="text-xs font-medium text-red-600">-{flock.losses}</p>
+   698→                                    <p className="text-[10px] text-red-400">({flock.lossPercent}%)</p>
+   699→                                  </div>
+   700→                                )}
+   701→                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 shrink-0"
+   702→                                  onClick={() => handleDeactivateFlock(flock.id, flock.name)}>
+   703→                                  <Trash2 className="h-3 w-3" />
+   704→                                </Button>
+   705→                              </div>
+   706→                            </div>
+   707→                          ))
+   708→                        )}
+   709→                      </div>
+   710→                    )}
+   711→                  </div>
+   712→                )
+   713→              })
+   714→            )}
+   715→          </div>
+   716→        </ScrollArea>
+   717→
+   718→        <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-2.5">
+   719→          <p className="text-[11px] text-blue-800">
+   720→            <Bird className="h-3 w-3 inline mr-1" />
+   721→            Bird counts auto-decrease when mortality or bird sales are recorded. Depletion = initial count minus current live count.
+   722→          </p>
+   723→        </div>
+   724→      </CardContent>
+   725→    </Card>
+   726→  )
+   727→}
+   728→
+   729→// ============ FULL DATA RESET ============
+   730→function FullDataReset() {
+   731→  const { currentUser } = useAppStore()
+   732→  const [confirmStep, setConfirmStep] = useState(0)
+   733→  const [saving, setSaving] = useState(false)
+   734→
+   735→  const handleFullReset = async () => {
+   736→    setSaving(true)
+   737→    try {
+   738→      const res = await fetch('/api/reset', {
+   739→        method: 'POST',
+   740→        headers: { 'Content-Type': 'application/json' },
+   741→        body: JSON.stringify({ role: currentUser?.role, action: 'fullReset', confirm: true }),
+   742→      })
+   743→      if (res.ok) {
+   744→        const result = await res.json()
+   745→        toast.success('All data has been wiped. The system is ready for a fresh start.')
+   746→        setConfirmStep(0)
+   747→        setTimeout(() => window.location.reload(), 1500)
+   748→      } else {
+   749→        const err = await res.json().catch(() => ({}))
+   750→        toast.error(err.error || 'Failed to reset data')
+   751→      }
+   752→    } catch {
+   753→      toast.error('Network error')
+   754→    } finally {
+   755→      setSaving(false)
+   756→    }
+   757→  }
+   758→
+   759→  return (
+   760→    <Card className="border-red-200">
+   761→      <CardHeader className="pb-2">
+   762→        <CardTitle className="text-base flex items-center gap-2 text-red-700">
+   763→          <RotateCcw className="h-4 w-4" />
+   764→          Full Data Reset
+   765→        </CardTitle>
+   766→        <CardDescription className="text-xs">
+   767→          Delete all records and start with a clean slate. This is irreversible.
+   768→        </CardDescription>
+   769→      </CardHeader>
+   770→      <CardContent>
+   771→        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
+   772→          <p className="text-xs text-red-800">
+   773→            <AlertTriangle className="h-3 w-3 inline mr-1" />
+   774→            <strong>Warning:</strong> This will permanently delete ALL data from the system, including:
+   775→          </p>
+   776→          <ul className="text-[11px] text-red-700 mt-1 ml-4 list-disc">
+   777→            <li>All egg collections, sales, and feed records</li>
+   778→            <li>All bird flocks and mortality records</li>
+   779→            <li>All expenses, treatments, and health checks</li>
+   780→            <li>All vaccination records</li>
+   781→            <li>All announcements and customers</li>
+   782→            <li>All farm locations</li>
+   783→            <li>All pending amendment requests</li>
+   784→          </ul>
+   785→          <p className="text-[11px] text-red-700 mt-1">
+   786→            Your CEO account will remain but all other staff will be deactivated. You will need to re-add farms and staff.
+   787→          </p>
+   788→        </div>
+   789→
+   790→        {confirmStep === 0 ? (
+   791→          <Button variant="destructive" size="sm" className="h-8 text-xs gap-1"
+   792→            onClick={() => setConfirmStep(1)}>
+   793→            <Trash2 className="h-3 w-3" /> Start Full Reset
+   794→          </Button>
+   795→        ) : (
+   796→          <div className="space-y-3">
+   797→            <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-2.5">
+   798→              <p className="text-xs font-medium text-yellow-900">
+   799→                ⚠️ Are you absolutely sure?
+   800→              </p>
+   801→              <p className="text-[11px] text-yellow-800 mt-1">
+   802→                This will permanently delete ALL data. Your CEO account will remain, but you will need to re-add farms and staff.
+   803→              </p>
+   804→            </div>
+   805→            <div className="flex gap-2">
+   806→              <Button variant="destructive" size="sm" onClick={handleFullReset} disabled={saving} className="h-8 text-xs gap-1">
+   807→                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+   808→                {saving ? 'Resetting...' : 'Yes, Delete Everything'}
+   809→              </Button>
+   810→              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setConfirmStep(0)}>
+   811→                Cancel
+   812→              </Button>
+   813→            </div>
+   814→          </div>
+   815→        )}
+   816→      </CardContent>
+   817→    </Card>
+   818→  )
+   819→}
+   820→
+   821→// ============ MAIN SETTINGS COMPONENT ============
+   822→export function CEOSettingsPanel() {
+   823→  return (
+   824→    <div className="space-y-4">
+   825→      <div>
+   826→        <h2 className="text-lg font-semibold flex items-center gap-2 mb-1">
+   827→          <Settings className="h-5 w-5 text-amber-600" />
+   828→          Farm Settings
+   829→        </h2>
+   830→        <p className="text-xs text-gray-500">Manage your farm name, locations, and data.</p>
+   831→      </div>
+   832→
+   833→      <FarmNameEditor />
+   834→      <FarmLocationsManager />
+   835→      <BirdFlockManager />
+   836→
+   837→      {/* DANGER ZONE separator — visually distinct from the operational settings above */}
+   838→      <div className="flex items-center gap-2 pt-4 px-1">
+   839→        <div className="h-px flex-1 bg-red-200" />
+   840→        <span className="text-[10px] font-bold tracking-[0.2em] text-red-600 uppercase">
+   841→          Danger Zone
+   842→        </span>
+   843→        <div className="h-px flex-1 bg-red-200" />
+   844→      </div>
+   845→
+   846→      <FullDataReset />
+   847→    </div>
+   848→  )
+   849→}
+   850→
