@@ -15,7 +15,8 @@ import { useAppStore } from '@/store/app'
 import { toast } from 'sonner'
 import { LiveSyncIndicator } from '@/components/farm/LiveSyncIndicator'
 import {
-  Egg, Plus, Trash2, Bird, Droplets, UtensilsCrossed, AlertTriangle, Calendar, BarChart3, CheckCircle, Pencil
+  Egg, Plus, Trash2, Bird, Droplets, UtensilsCrossed, AlertTriangle, Calendar, BarChart3, CheckCircle, Pencil,
+  TrendingUp, Users as UsersIcon, Package
 } from 'lucide-react'
 import { AmendmentRequestDialog } from '@/components/farm/AmendmentRequestDialog'
 
@@ -23,10 +24,16 @@ interface Farm { id: string; name: string; location: string; flocks: any[] }
 interface EggRecord { id: string; date: string; crateCount: number; eggsPerCrate: number; brokenCount: number; soiledCount: number; farm: { name: string } }
 interface MortRecord { id: string; date: string; count: number; cause: string; flock: { name: string }; farm: { name: string } }
 interface FeedRecord { id: string; date: string; feedType: string; bagsUsed: number; bagWeightKg: number; costPerBag: number; farm: { name: string } }
+interface Flock {
+  id: string; name: string; birdType: string; breed: string | null; birdCount: number; initialBirdCount: number;
+  ageWeeks: number; currentAgeWeeks: number; dateArrival: string; isActive: boolean; farmId: string;
+  farm: { name: string; location: string }; losses: number; lossPercent: number;
+}
 
 export function FarmHandDashboard() {
   const { selectedFarmId, setFarm, currentUser } = useAppStore()
   const [farms, setFarms] = useState<Farm[]>([])
+  const [flocks, setFlocks] = useState<Flock[]>([])
   const [eggRecords, setEggRecords] = useState<EggRecord[]>([])
   const [mortRecords, setMortRecords] = useState<MortRecord[]>([])
   const [feedRecords, setFeedRecords] = useState<FeedRecord[]>([])
@@ -59,25 +66,38 @@ export function FarmHandDashboard() {
   const [feedCostPerBag, setFeedCostPerBag] = useState('')
   const [feedSupplier, setFeedSupplier] = useState('')
 
+  // Add Flock form state
+  const [newFlockName, setNewFlockName] = useState('')
+  const [newFlockFarmId, setNewFlockFarmId] = useState(selectedFarmId || '')
+  const [newFlockType, setNewFlockType] = useState('Layer')
+  const [newFlockBreed, setNewFlockBreed] = useState('Bovan Brown')
+  const [newFlockCount, setNewFlockCount] = useState('')
+  const [newFlockAge, setNewFlockAge] = useState('')
+  const [newFlockDate, setNewFlockDate] = useState(new Date().toISOString().split('T')[0])
+  const [newFlockNotes, setNewFlockNotes] = useState('')
+
   // Sync form defaults when global farm changes
   useEffect(() => {
     if (selectedFarmId) {
       setEggFarmId(selectedFarmId)
       setMortFarmId(selectedFarmId)
       setFeedFarmId(selectedFarmId)
+      setNewFlockFarmId(selectedFarmId)
     }
   }, [selectedFarmId])
 
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [farmsRes, eggsRes, mortRes, feedRes] = await Promise.all([
+      const [farmsRes, flocksRes, eggsRes, mortRes, feedRes] = await Promise.all([
         fetch('/api/farms'),
+        fetch(`/api/flocks${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`),
         fetch(`/api/eggs${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`),
         fetch(`/api/mortality${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`),
         fetch(`/api/feed${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`),
       ])
       if (farmsRes.ok) setFarms(await farmsRes.json())
+      if (flocksRes.ok) setFlocks(await flocksRes.json())
       if (eggsRes.ok) setEggRecords(await eggsRes.json())
       if (mortRes.ok) setMortRecords(await mortRes.json())
       if (feedRes.ok) setFeedRecords(await feedRes.json())
@@ -87,14 +107,14 @@ export function FarmHandDashboard() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  // Auto-refresh: Farm hand sees changes from other staff in real-time
-  // Skip if form is being submitted to prevent race conditions
+  // Auto-refresh
   const handleAutoData = useCallback((results: any[]) => {
-    if (results && results.length >= 4 && !isSubmittingRef.current) {
+    if (results && results.length >= 5 && !isSubmittingRef.current) {
       setFarms(results[0] || [])
-      setEggRecords(results[1] || [])
-      setMortRecords(results[2] || [])
-      setFeedRecords(results[3] || [])
+      setFlocks(results[1] || [])
+      setEggRecords(results[2] || [])
+      setMortRecords(results[3] || [])
+      setFeedRecords(results[4] || [])
     }
   }, [])
 
@@ -103,10 +123,22 @@ export function FarmHandDashboard() {
   const todayEggs = eggRecords.filter(e => new Date(e.date).toISOString().split('T')[0] === today)
   const todayCrates = todayEggs.reduce((s, e) => s + e.crateCount, 0)
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]
+  const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
   const weekMortality = mortRecords.filter(m => new Date(m.date).toISOString().split('T')[0] >= weekAgo)
   const weekDeaths = weekMortality.reduce((s, m) => s + m.count, 0)
   const weekEggs = eggRecords.filter(e => new Date(e.date).toISOString().split('T')[0] >= weekAgo)
   const weekCrates = weekEggs.reduce((s, e) => s + e.crateCount, 0)
+
+  // Lay rate calculations
+  const activeFlocks = flocks.filter(f => f.birdType === 'Layer' && f.birdCount > 0 && f.isActive)
+  const totalLayerBirds = activeFlocks.reduce((s, f) => s + f.birdCount, 0)
+  const todayTotalEggs = todayEggs.reduce((s, e) => s + (e.crateCount * e.eggsPerCrate), 0)
+  const dailyLayPercent = totalLayerBirds > 0 ? Math.round((todayTotalEggs / totalLayerBirds) * 10000) / 100 : 0
+  const monthEggRecords = eggRecords.filter(e => new Date(e.date).toISOString().split('T')[0] >= monthAgo)
+  const monthTotalEggs = monthEggRecords.reduce((s, e) => s + (e.crateCount * e.eggsPerCrate), 0)
+  const daysInPeriod = Math.max(1, Math.min(30, new Set(eggRecords.filter(e => new Date(e.date).toISOString().split('T')[0] >= monthAgo).map(e => new Date(e.date).toISOString().split('T')[0])).size))
+  const monthlyLayPercent = totalLayerBirds > 0 ? Math.round((monthTotalEggs / (totalLayerBirds * daysInPeriod)) * 10000) / 100 : 0
+  const totalBirds = flocks.filter(f => f.isActive).reduce((s, f) => s + f.birdCount, 0)
 
   const openAmendmentDialog = (recordType: string, recordId: string, fields: any[]) => {
     setAmendmentTarget({ recordType, recordId, fields })
@@ -201,12 +233,43 @@ export function FarmHandDashboard() {
     finally { isSubmittingRef.current = false }
   }
 
+  const submitNewFlock = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    try {
+      const count = Number(newFlockCount)
+      const age = Number(newFlockAge) || 0
+      if (!newFlockFarmId) { toast.error('Please select a farm'); return }
+      if (!newFlockName.trim()) { toast.error('Please enter a flock name'); return }
+      if (!count || count <= 0) { toast.error('Please enter a valid bird count'); return }
+      const data = {
+        farmId: newFlockFarmId,
+        name: newFlockName.trim(),
+        birdType: newFlockType,
+        breed: newFlockBreed.trim() || null,
+        birdCount: count,
+        initialBirdCount: count,
+        ageWeeks: age,
+        dateArrival: newFlockDate || today,
+        notes: newFlockNotes.trim() || null,
+      }
+      const res = await fetch('/api/flocks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (res.ok) {
+        toast.success('New flock added!')
+        setNewFlockName(''); setNewFlockCount(''); setNewFlockAge(''); setNewFlockNotes(''); setNewFlockBreed('Bovan Brown')
+        fetchData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Failed to add flock')
+      }
+    } catch (err) { console.error(err); toast.error('Failed to add flock') }
+  }
+
   if (loading && farms.length === 0) return <div className="grid grid-cols-2 gap-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
 
   return (
     <div className="space-y-4 md:space-y-6">
       {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-1">
@@ -220,11 +283,21 @@ export function FarmHandDashboard() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-1">
-              <BarChart3 className="h-4 w-4 text-green-600" />
-              <span className="text-xs text-gray-500">This Week</span>
+              <TrendingUp className="h-4 w-4 text-green-600" />
+              <span className="text-xs text-gray-500">Lay Rate (Today)</span>
             </div>
-            <p className="text-2xl font-bold">{weekCrates} crates</p>
-            <p className="text-xs text-gray-500">Average {Math.round(weekCrates / 7)}/day</p>
+            <p className="text-2xl font-bold text-green-700">{dailyLayPercent}%</p>
+            <p className="text-xs text-gray-500">{totalLayerBirds.toLocaleString()} layers</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <BarChart3 className="h-4 w-4 text-blue-600" />
+              <span className="text-xs text-gray-500">Monthly Lay Rate</span>
+            </div>
+            <p className="text-2xl font-bold text-blue-700">{monthlyLayPercent}%</p>
+            <p className="text-xs text-gray-500">avg over {daysInPeriod} days</p>
           </CardContent>
         </Card>
         <Card>
@@ -233,21 +306,21 @@ export function FarmHandDashboard() {
               <AlertTriangle className="h-4 w-4 text-red-600" />
               <span className="text-xs text-gray-500">Week Mortality</span>
             </div>
-            <p className="text-2xl font-bold">{weekDeaths}</p>
+            <p className="text-2xl font-bold text-red-600">{weekDeaths}</p>
             <p className="text-xs text-gray-500">birds lost this week</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <UtensilsCrossed className="h-4 w-4 text-purple-600" />
-              <span className="text-xs text-gray-500">Today&apos;s Feed</span>
-            </div>
-            <p className="text-2xl font-bold">{feedRecords.filter(f => new Date(f.date).toISOString().split('T')[0] === today).reduce((s, f) => s + f.bagsUsed, 0)} bags</p>
-            <p className="text-xs text-gray-500">total bags used today</p>
-          </CardContent>
-        </Card>
-      </div>
+          <div className="flex items-center gap-2 mb-1">
+            <Bird className="h-4 w-4 text-purple-600" />
+            <span className="text-xs text-gray-500">Total Birds</span>
+          </div>
+          <p className="text-2xl font-bold text-purple-700">{totalBirds.toLocaleString()}</p>
+          <p className="text-xs text-gray-500">{flocks.filter(f => f.isActive).length} active flocks</p>
+        </CardContent>
+      </Card>
+    </div>
 
       {/* Farm Filter */}
       <div className="flex items-center gap-2">
@@ -262,21 +335,140 @@ export function FarmHandDashboard() {
       </div>
 
       <LiveSyncIndicator
-        endpoints={['/api/farms', `/api/eggs${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/mortality${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/feed${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`]}
+        endpoints={['/api/farms', `/api/flocks${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/eggs${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/mortality${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/feed${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`]}
         interval={30000}
         onData={handleAutoData}
         compact
       />
 
-      <Tabs defaultValue="eggs" className="w-full">
-        <TabsList className="grid grid-cols-4 w-full">
+      <Tabs defaultValue="flocks" className="w-full">
+        <TabsList className="grid grid-cols-5 w-full">
+          <TabsTrigger value="flocks"><Bird className="h-3 w-3 mr-1" />Flocks</TabsTrigger>
           <TabsTrigger value="eggs"><Egg className="h-3 w-3 mr-1" />Eggs</TabsTrigger>
           <TabsTrigger value="mortality"><AlertTriangle className="h-3 w-3 mr-1" />Deaths</TabsTrigger>
           <TabsTrigger value="feed"><UtensilsCrossed className="h-3 w-3 mr-1" />Feed</TabsTrigger>
           <TabsTrigger value="history"><Calendar className="h-3 w-3 mr-1" />History</TabsTrigger>
         </TabsList>
 
-        {/* Egg Collection Form */}
+        {/* FLOCKS TAB */}
+        <TabsContent value="flocks">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Add New Flock / Room</CardTitle>
+              <CardDescription>Register a new batch of birds to a farm</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={submitNewFlock} className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                  <Label className="text-xs">Farm *</Label>
+                  <Select value={newFlockFarmId} onValueChange={setNewFlockFarmId}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select farm" /></SelectTrigger>
+                    <SelectContent>
+                      {farms.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Flock Name *</Label>
+                  <Input required placeholder="e.g. Layer Room A" value={newFlockName} onChange={e => setNewFlockName(e.target.value)} className="h-9 text-sm" />
+                </div>
+                <div>
+                  <Label className="text-xs">Bird Type *</Label>
+                  <Select value={newFlockType} onValueChange={setNewFlockType}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Layer">Layer</SelectItem>
+                      <SelectItem value="Broiler">Broiler</SelectItem>
+                      <SelectItem value="Cockerel">Cockerel</SelectItem>
+                      <SelectItem value="Turkeys">Turkeys</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Breed</Label>
+                  <Select value={newFlockBreed} onValueChange={setNewFlockBreed}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Bovan Brown">Bovan Brown</SelectItem>
+                      <SelectItem value="Lohmann Brown">Lohmann Brown</SelectItem>
+                      <SelectItem value="ISA Brown">ISA Brown</SelectItem>
+                      <SelectItem value="Hy-Line Brown">Hy-Line Brown</SelectItem>
+                      <SelectItem value="Cobb 500">Cobb 500 (Broiler)</SelectItem>
+                      <SelectItem value="Ross 308">Ross 308 (Broiler)</SelectItem>
+                      <SelectItem value="Sasso">Sasso (Cockerel)</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Number of Birds *</Label>
+                  <Input type="number" min="1" required placeholder="e.g. 2500" value={newFlockCount} onChange={e => setNewFlockCount(e.target.value)} className="h-9 text-sm" />
+                </div>
+                <div>
+                  <Label className="text-xs">Age (weeks)</Label>
+                  <Input type="number" min="0" placeholder="e.g. 20" value={newFlockAge} onChange={e => setNewFlockAge(e.target.value)} className="h-9 text-sm" />
+                </div>
+                <div>
+                  <Label className="text-xs">Arrival Date</Label>
+                  <Input type="date" value={newFlockDate} onChange={e => setNewFlockDate(e.target.value)} className="h-9 text-sm" />
+                </div>
+                <div>
+                  <Label className="text-xs">Notes</Label>
+                  <Input placeholder="Optional notes" value={newFlockNotes} onChange={e => setNewFlockNotes(e.target.value)} className="h-9 text-sm" />
+                </div>
+                <div className="flex items-end col-span-2 md:col-span-4">
+                  <Button type="submit" className="w-full md:w-auto h-9"><Plus className="h-3 w-3 mr-1" />Add Flock</Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Flock List with live counts */}
+          <Card className="mt-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Active Flocks ({flocks.filter(f => f.isActive).length})</CardTitle>
+              <CardDescription>Live bird counts — auto-reduced by mortality and sales</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="max-h-96">
+                <div className="space-y-2">
+                  {flocks.filter(f => f.isActive).map(f => (
+                    <div key={f.id} className="border rounded-lg p-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${f.birdType === 'Layer' ? 'bg-amber-100' : f.birdType === 'Broiler' ? 'bg-blue-100' : 'bg-gray-100'}`}>
+                          <Bird className={`h-5 w-5 ${f.birdType === 'Layer' ? 'text-amber-700' : f.birdType === 'Broiler' ? 'text-blue-700' : 'text-gray-600'}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm">{f.name}</p>
+                          <p className="text-xs text-gray-500">{f.farm?.name} · {f.breed || f.birdType} · Age: <span className="font-medium text-gray-700">{f.currentAgeWeeks} weeks</span></p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold">{f.birdCount.toLocaleString()}</p>
+                          <p className="text-[10px] text-gray-400">of {f.initialBirdCount.toLocaleString()} birds</p>
+                        </div>
+                        <div className="text-right">
+                          {f.losses > 0 && (
+                            <>
+                              <p className="text-xs font-medium text-red-600">-{f.losses} lost</p>
+                              <p className="text-[10px] text-red-400">({f.lossPercent}%)</p>
+                            </>
+                          )}
+                          {f.losses === 0 && <p className="text-xs text-green-600">No losses</p>}
+                        </div>
+                        <Badge variant={f.birdType === 'Layer' ? 'default' : 'secondary'} className="text-[10px] shrink-0">
+                          {f.birdType}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                  {flocks.filter(f => f.isActive).length === 0 && <p className="text-center text-gray-400 py-4 text-sm">No flocks yet. Add one above!</p>}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* EGG COLLECTION TAB */}
         <TabsContent value="eggs">
           <Card>
             <CardHeader className="pb-2">
@@ -316,14 +508,49 @@ export function FarmHandDashboard() {
               </form>
             </CardContent>
           </Card>
+
+          {/* Recent egg collections */}
+          <Card className="mt-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Recent Egg Collections</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="max-h-72">
+                <div className="space-y-2">
+                  {eggRecords.slice(0, 15).map(r => (
+                    <div key={r.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg text-sm">
+                      <Egg className="h-4 w-4 text-amber-600 shrink-0" />
+                      <div className="flex-1">
+                        <p className="font-medium">{r.farm?.name}</p>
+                        <p className="text-xs text-gray-500">{new Date(r.date).toLocaleDateString('en-GB')}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium">{r.crateCount} crates</p>
+                        <p className="text-xs text-gray-500">{r.crateCount * r.eggsPerCrate} eggs</p>
+                      </div>
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-gray-400 hover:text-amber-600" onClick={() => openAmendmentDialog('DailyEggCollection', r.id, [
+                        { key: 'crateCount', label: 'Crates', type: 'number' as const, value: r.crateCount },
+                        { key: 'eggsPerCrate', label: 'Eggs/Crate', type: 'number' as const, value: r.eggsPerCrate },
+                        { key: 'brokenCount', label: 'Broken', type: 'number' as const, value: r.brokenCount },
+                        { key: 'soiledCount', label: 'Soiled', type: 'number' as const, value: r.soiledCount },
+                      ])}>
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                  {eggRecords.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">No records yet</p>}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        {/* Mortality Form */}
+        {/* MORTALITY TAB */}
         <TabsContent value="mortality">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Record Bird Mortality</CardTitle>
-              <CardDescription>Report any bird deaths observed</CardDescription>
+              <CardDescription>Report any bird deaths — flock count will auto-reduce</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={submitMortality} className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -341,7 +568,7 @@ export function FarmHandDashboard() {
                   <Select value={mortFlockId} onValueChange={setMortFlockId}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select flock" /></SelectTrigger>
                     <SelectContent>
-                      {farms.flatMap(f => f.flocks.map(fl => <SelectItem key={fl.id} value={fl.id}>{fl.name} ({f.name})</SelectItem>))}
+                      {flocks.filter(f => f.isActive).map(fl => <SelectItem key={fl.id} value={fl.id}>{fl.name} ({fl.farm?.name || 'Unknown'})</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -373,9 +600,32 @@ export function FarmHandDashboard() {
               </form>
             </CardContent>
           </Card>
+
+          <Card className="mt-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Recent Mortality Records</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="max-h-72">
+                <div className="space-y-2">
+                  {mortRecords.slice(0, 10).map(r => (
+                    <div key={r.id} className="flex items-center gap-3 p-2 bg-red-50 rounded-lg text-sm">
+                      <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
+                      <div className="flex-1">
+                        <p className="font-medium">{r.flock?.name} - {r.farm?.name}</p>
+                        <p className="text-xs text-gray-500">{new Date(r.date).toLocaleDateString('en-GB')}{r.cause ? ` · ${r.cause}` : ''}</p>
+                      </div>
+                      <Badge variant="destructive">{r.count} lost</Badge>
+                    </div>
+                  ))}
+                  {mortRecords.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">No mortality records yet</p>}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        {/* Feed Form */}
+        {/* FEED TAB */}
         <TabsContent value="feed">
           <Card>
             <CardHeader className="pb-2">
@@ -431,7 +681,7 @@ export function FarmHandDashboard() {
           </Card>
         </TabsContent>
 
-        {/* History */}
+        {/* HISTORY TAB */}
         <TabsContent value="history">
           <div className="space-y-4">
             <Card>
@@ -452,14 +702,6 @@ export function FarmHandDashboard() {
                           <p className="font-medium">{r.crateCount} crates</p>
                           <p className="text-xs text-gray-500">{r.crateCount * r.eggsPerCrate} eggs</p>
                         </div>
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-gray-400 hover:text-amber-600" onClick={() => openAmendmentDialog('DailyEggCollection', r.id, [
-                          { key: 'crateCount', label: 'Crates', type: 'number' as const, value: r.crateCount },
-                          { key: 'eggsPerCrate', label: 'Eggs/Crate', type: 'number' as const, value: r.eggsPerCrate },
-                          { key: 'brokenCount', label: 'Broken', type: 'number' as const, value: r.brokenCount },
-                          { key: 'soiledCount', label: 'Soiled', type: 'number' as const, value: r.soiledCount },
-                        ])}>
-                          <Pencil className="h-3 w-3" />
-                        </Button>
                       </div>
                     ))}
                     {eggRecords.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">No records yet</p>}
@@ -483,12 +725,6 @@ export function FarmHandDashboard() {
                           <p className="text-xs text-gray-500">{new Date(r.date).toLocaleDateString('en-GB')}{r.cause ? ` · ${r.cause}` : ''}</p>
                         </div>
                         <Badge variant="destructive">{r.count} lost</Badge>
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-gray-400 hover:text-amber-600" onClick={() => openAmendmentDialog('BirdMortality', r.id, [
-                          { key: 'count', label: 'Count', type: 'number' as const, value: r.count },
-                          { key: 'cause', label: 'Cause', type: 'text' as const, value: r.cause || '' },
-                        ])}>
-                          <Pencil className="h-3 w-3" />
-                        </Button>
                       </div>
                     ))}
                     {mortRecords.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">No mortality records yet</p>}

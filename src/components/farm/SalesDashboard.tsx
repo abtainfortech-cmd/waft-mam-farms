@@ -46,6 +46,7 @@ export function SalesDashboard() {
   const [eggAmountPaid, setEggAmountPaid] = useState('')
   const [birdSaleCustomerId, setBirdSaleCustomerId] = useState('')
   const [birdSaleFarmId, setBirdSaleFarmId] = useState(selectedFarmId || '')
+  const [birdSaleFlockId, setBirdSaleFlockId] = useState('')
   const [birdSalePayment, setBirdSalePayment] = useState('Paid')
   const [birdAmountPaid, setBirdAmountPaid] = useState('')
   const [customerType, setCustomerType] = useState('Retail')
@@ -60,6 +61,7 @@ export function SalesDashboard() {
   const [birdPricePerBird, setBirdPricePerBird] = useState('')
   const [birdWeightPerBird, setBirdWeightPerBird] = useState('')
   const [birdSaleDate, setBirdSaleDate] = useState(today)
+  const [birdFlocks, setBirdFlocks] = useState<{ id: string; name: string; birdType: string; birdCount: number }[]>([])
 
   // Controlled input state for customer form
   const [custName, setCustName] = useState('')
@@ -72,6 +74,16 @@ export function SalesDashboard() {
       setBirdSaleFarmId(selectedFarmId)
     }
   }, [selectedFarmId])
+
+  const fetchBirdFlocks = useCallback(async (farmId?: string) => {
+    if (!farmId) { setBirdFlocks([]); return }
+    try {
+      const res = await fetch(`/api/flocks?farmId=${farmId}`)
+      if (res.ok) setBirdFlocks(await res.json())
+    } catch {}
+  }, [])
+
+  useEffect(() => { if (birdSaleFarmId) fetchBirdFlocks(birdSaleFarmId) }, [birdSaleFarmId, fetchBirdFlocks])
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -160,6 +172,7 @@ export function SalesDashboard() {
         paymentStatus: birdSalePayment,
         amountPaid: birdSalePayment === 'Paid' ? qty * price : birdSalePayment === 'Partial' ? (Number(birdAmountPaid) || 0) : 0,
         farmId: birdSaleFarmId,
+        flockId: birdSaleFlockId || null,
         recordedBy: currentUser?.name || 'Sales',
       }
       const res = await fetch('/api/sales/birds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
@@ -401,7 +414,21 @@ export function SalesDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
+                </div>
                 <div>
+                  <Label className="text-xs">Flock (optional)</Label>
+                  <Select value={birdSaleFlockId || 'none' onValueChange={(v) => setBirdSaleFlockId(v === 'none
+' ? '
+' : v)}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select flock" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None / Walk-in</SelectItem>
+                      {birdFlocks.map(fl => (
+                        <SelectItem key={fl.id} value={fl.id}>{fl.name} ({fl.birdCount} birds)</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                   <Label className="text-xs">Date</Label>
                   <Input type="date" value={birdSaleDate} onChange={e => setBirdSaleDate(e.target.value)} className="h-9 text-sm" />
                 </div>

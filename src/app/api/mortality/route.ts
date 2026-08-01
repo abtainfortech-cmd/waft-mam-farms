@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { ensureDbSchema } from '@/lib/db-setup'
 
 export async function GET(request: NextRequest) {
   const farmId = request.nextUrl.searchParams.get('farmId')
@@ -28,8 +29,19 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    await ensureDbSchema()
     const body = await request.json()
     if (body.date) body.date = normalizeDate(body.date)
+
+    // Decrement flock birdCount by mortality count
+    if (body.flockId && body.count) {
+      const flock = await db.birdFlock.findUnique({ where: { id: body.flockId } })
+      if (flock) {
+        const newCount = Math.max(0, flock.birdCount - body.count)
+        await db.birdFlock.update({ where: { id: body.flockId }, data: { birdCount: newCount } })
+      }
+    }
+
     const record = await db.birdMortality.create({ data: body })
     return NextResponse.json(record, { status: 201 })
   } catch (error: any) {

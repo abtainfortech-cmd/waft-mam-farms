@@ -39,27 +39,30 @@ model Farm {
   vaccinations   Vaccination[]
   treatments     Treatment[]
   expenses       Expense[]
+  birdSales      BirdSale[]
 }
 
 model BirdFlock {
-  id          String   @id @default(cuid())
-  farmId      String
-  name        String
-  birdType    String   // "Layer", "Broiler", "Cockerel", "Turkeys"
-  breed       String?
-  birdCount   Int
-  ageWeeks    Int
-  dateArrival DateTime
-  notes       String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String   @id @default(cuid())
+  farmId            String
+  name              String
+  birdType          String   // "Layer", "Broiler", "Cockerel", "Turkeys"
+  breed             String?
+  birdCount         Int      // Live count — decremented by mortality and bird sales
+  initialBirdCount  Int      @default(0)  // Original count at arrival (for tracking losses)
+  ageWeeks          Int      // Age at arrival (auto-calculated from dateArrival by API)
+  dateArrival       DateTime
+  notes             String?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  farm        Farm     @relation(fields: [farmId], references: [id])
-  mortalityRecords BirdMortality[]
-  healthChecks   HealthCheck[]
-  vaccinations   Vaccination[]
-  treatments     Treatment[]
+  farm              Farm     @relation(fields: [farmId], references: [id])
+  mortalityRecords  BirdMortality[]
+  healthChecks      HealthCheck[]
+  vaccinations      Vaccination[]
+  treatments        Treatment[]
+  birdSales         BirdSale[]
 }
 
 model Staff {
@@ -177,6 +180,7 @@ model EggSale {
 model BirdSale {
   id              String   @id @default(cuid())
   customerId      String?
+  flockId         String?  // Which flock the birds came from (optional)
   date            DateTime
   quantity        Int
   weightPerBirdKg Float?
@@ -191,6 +195,8 @@ model BirdSale {
   updatedAt       DateTime @updatedAt
 
   customer        Customer? @relation(fields: [customerId], references: [id])
+  flock           BirdFlock? @relation(fields: [flockId], references: [id])
+  farm            Farm       @relation(fields: [farmId], references: [id])
 }
 
 // ============ FINANCIAL ============

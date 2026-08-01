@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { ensureDbSchema } from '@/lib/db-setup'
 
 export async function GET(request: NextRequest) {
   const farmId = request.nextUrl.searchParams.get('farmId')
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
   try {
     const sales = await db.birdSale.findMany({
       where,
-      include: { customer: true },
+      include: { customer: true, flock: true },
       orderBy: { date: 'desc' },
     })
     return NextResponse.json(sales)
@@ -37,8 +38,19 @@ function normalizeDate(val: unknown): Date | undefined {
 
 export async function POST(request: NextRequest) {
   try {
+    await ensureDbSchema()
     const body = await request.json()
     if (body.date) body.date = normalizeDate(body.date)
+
+    // Decrement flock birdCount by quantity sold
+    if (body.flockId && body.quantity) {
+      const flock = await db.birdFlock.findUnique({ where: { id: body.flockId } })
+      if (flock) {
+        const newCount = Math.max(0, flock.birdCount - body.quantity)
+        await db.birdFlock.update({ where: { id: body.flockId }, data: { birdCount: newCount } })
+      }
+    }
+
     const sale = await db.birdSale.create({ data: body })
     return NextResponse.json(sale, { status: 201 })
   } catch (error: any) {
@@ -52,7 +64,6 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const { id, expectedUpdatedAt, ...data } = body
 
-    // Conflict check
     const current = await db.birdSale.findUnique({ where: { id } })
     if (!current) return NextResponse.json({ error: 'Sale not found' }, { status: 404 })
 

@@ -15,11 +15,14 @@ import { useAppStore } from '@/store/app'
 import { toast } from 'sonner'
 import { LiveSyncIndicator } from '@/components/farm/LiveSyncIndicator'
 import {
-  Stethoscope, Plus, Shield, AlertTriangle, Syringe, Activity, CheckCircle2, Clock, Heart, Pencil
+  Stethoscope, Plus, Shield, AlertTriangle, Syringe, Activity, CheckCircle2, Clock, Heart, Pencil, BookOpen, ClipboardList
 } from 'lucide-react'
 import { AmendmentRequestDialog } from '@/components/farm/AmendmentRequestDialog'
+import { getScheduleForAge, BOVAN_BROWN_SCHEDULE } from '@/lib/vaccination-schedule'
+import type { ScheduleItem } from '@/lib/vaccination-schedule'
 
 interface Farm { id: string; name: string; flocks: any[] }
+interface FlockWithAge { id: string; name: string; birdType: string; breed: string | null; birdCount: number; farmId: string; farm: { name: string }; currentAgeWeeks: number }
 interface Vaccination { id: string; vaccineName: string; scheduledDate: string; administeredDate: string | null; status: string; method: string; flock: { name: string; birdType: string; birdCount: number }; farm: { name: string } }
 interface Treatment { id: string; date: string; diagnosis: string; medication: string; dosage: string; duration: string; cost: number; status: string; flock: { name: string }; farm: { name: string } }
 interface HealthCheck { id: string; date: string; overallStatus: string; symptoms: string | null; bodyCondition: string | null; temperature: number | null; recommendations: string | null; flock: { name: string; birdType: string }; farm: { name: string } }
@@ -27,6 +30,7 @@ interface HealthCheck { id: string; date: string; overallStatus: string; symptom
 export function VetDashboard() {
   const { selectedFarmId, setFarm, currentUser } = useAppStore()
   const [farms, setFarms] = useState<Farm[]>([])
+  const [allFlocks, setAllFlocks] = useState<FlockWithAge[]>([])
   const [vaccinations, setVaccinations] = useState<Vaccination[]>([])
   const [treatments, setTreatments] = useState<Treatment[]>([])
   const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([])
@@ -75,13 +79,15 @@ export function VetDashboard() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [farmsRes, vacRes, treatRes, healthRes] = await Promise.all([
+      const [farmsRes, flocksRes, vacRes, treatRes, healthRes] = await Promise.all([
         fetch('/api/farms'),
+        fetch(`/api/flocks`),
         fetch(`/api/vaccinations${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`),
         fetch(`/api/treatments${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`),
         fetch(`/api/health${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`),
       ])
       if (farmsRes.ok) setFarms(await farmsRes.json())
+      if (flocksRes.ok) setAllFlocks(await flocksRes.json())
       if (vacRes.ok) setVaccinations(await vacRes.json())
       if (treatRes.ok) setTreatments(await treatRes.json())
       if (healthRes.ok) setHealthChecks(await healthRes.json())
@@ -93,11 +99,12 @@ export function VetDashboard() {
 
   // Auto-refresh: Vet sees mortality and flock data from farm hand in real-time
   const handleAutoData = useCallback((results: any[]) => {
-    if (results && results.length >= 4) {
+    if (results && results.length >= 5) {
       setFarms(results[0] || [])
-      setVaccinations(results[1] || [])
-      setTreatments(results[2] || [])
-      setHealthChecks(results[3] || [])
+      setAllFlocks(results[1] || [])
+      setVaccinations(results[2] || [])
+      setTreatments(results[3] || [])
+      setHealthChecks(results[4] || [])
     }
   }, [])
 
@@ -312,15 +319,16 @@ export function VetDashboard() {
       </div>
 
       <LiveSyncIndicator
-        endpoints={['/api/farms', `/api/vaccinations${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/treatments${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/health${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`]}
+        endpoints={['/api/farms', '/api/flocks', `/api/vaccinations${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/treatments${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`, `/api/health${selectedFarmId ? `?farmId=${selectedFarmId}` : ''}`]}
         interval={20000}
         onData={handleAutoData}
         compact
       />
 
       <Tabs defaultValue="schedule" className="w-full">
-        <TabsList className="grid grid-cols-4 w-full">
+        <TabsList className="grid grid-cols-5 w-full">
           <TabsTrigger value="schedule"><Syringe className="h-3 w-3 mr-1" />Vaccinations</TabsTrigger>
+          <TabsTrigger value="std-schedule"><BookOpen className="h-3 w-3 mr-1" />Standard Schedule</TabsTrigger>
           <TabsTrigger value="health"><Stethoscope className="h-3 w-3 mr-1" />Health</TabsTrigger>
           <TabsTrigger value="treatments"><Activity className="h-3 w-3 mr-1" />Treatments</TabsTrigger>
           <TabsTrigger value="history"><CheckCircle2 className="h-3 w-3 mr-1" />History</TabsTrigger>
@@ -449,6 +457,119 @@ export function VetDashboard() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="std-schedule">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <ClipboardList className="h-4 w-4 text-blue-600" />
+                Bovan Brown Standard Vaccination Schedule
+              </CardTitle>
+              <CardDescription>Auto-linked to each flock based on bird age in weeks</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="max-h-[600px]">
+                <div className="space-y-4">
+                  {allFlocks.filter(f => f.birdType === 'Layer' && f.birdCount > 0).map(flock => {
+                    const schedule = getScheduleForAge(flock.currentAgeWeeks)
+                    return (
+                      <div key={flock.id} className="border rounded-lg overflow-hidden">
+                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-3 py-2 flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold text-sm">{flock.name}</p>
+                            <p className="text-xs text-gray-500">{flock.farm?.name} · {flock.breed || 'Layer'} · <span className="font-medium">{flock.currentAgeWeeks} weeks old</span> · {flock.birdCount.toLocaleString()} birds</p>
+                          </div>
+                          <Badge variant={schedule.current.length > 0 ? 'destructive' : 'default'}>
+                            {schedule.current.length > 0 ? `${schedule.current.length} DUE` : 'Up to date'}
+                          </Badge>
+                        </div>
+
+                        {/* DUE NOW section */}
+                        {schedule.current.length > 0 && (
+                          <div className="mx-3 mt-1">
+                            <p className="text-xs font-bold text-red-700 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                              <AlertTriangle className="h-3 w-3" /> Due This Week
+                            </p>
+                            <div className="space-y-1">
+                              {schedule.current.map((item, i) => (
+                                <div key={i} className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-lg text-xs">
+                                  <Badge variant="destructive" className="text-[10px] shrink-0">Week {item.week}</Badge>
+                                  <div className="flex-1">
+                                    <p className="font-medium">{item.vaccine}</p>
+                                    <p className="text-gray-500">{item.method}{item.notes ? ` · ${item.notes}` : ''}</p>
+                                  </div>
+                                  <Badge variant={item.type === 'vaccination' ? 'default' : 'secondary'} className="text-[10px] shrink-0">
+                                    {item.type === 'vaccination' ? 'Vaccine' : item.type === 'deworming' ? 'Deworm' : 'Prevention'}
+                                  </Badge>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Upcoming section */}
+                        {schedule.upcoming.length > 0 && (
+                          <div className="mx-3 mt-1">
+                            <p className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                              <Clock className="h-3 w-3" /> Coming Up (within 4 weeks)
+                            </p>
+                            <div className="space-y-1">
+                              {schedule.upcoming.map((item, i) => (
+                                <div key={i} className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs">
+                                  <Badge variant="secondary" className="text-[10px] shrink-0">Week {item.week}</Badge>
+                                  <div className="flex-1">
+                                    <p className="font-medium">{item.vaccine}</p>
+                                    <p className="text-gray-500">{item.method}</p>
+                                  </div>
+                                  <Badge variant={item.type === 'vaccination' ? 'outline' : 'secondary'} className="text-[10px] shrink-0">
+                                    {item.type === 'vaccination' ? 'Vaccine' : item.type === 'deworming' ? 'Deworm' : 'Prevention'}
+                                  </Badge>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Past / completed section */}
+                        <div className="mx-3 mt-3">
+                          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Full Schedule</p>
+                          <div className="space-y-0.5">
+                            {schedule.all.filter(s => s.type === 'vaccination').map((item, i) => {
+                              const isDone = item.week < flock.currentAgeWeeks - 1
+                              const isDue = schedule.current.some(c => c.vaccine === item.vaccine && c.week === item.week)
+                              const isUpcoming = schedule.upcoming.some(c => c.vaccine === item.vaccine && c.week === item.week)
+                              return (
+                                <div key={i} className={`flex items-center gap-2 px-2 py-1 rounded text-xs ${isDue ? 'bg-red-50 font-medium' : isUpcoming ? 'bg-amber-50' : isDone ? 'text-gray-400' : 'text-gray-300'}`}>
+                                  <span className="w-12 text-right shrink-0">Wk {item.week}</span>
+                                  <span className="flex-1 truncate">{item.vaccine}</span>
+                                  <span className="w-20 text-right shrink-0 text-gray-400">{item.method}</span>
+                                  {isDone && <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />}
+                                  {isDue && <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {allFlocks.filter(f => f.birdType === 'Layer' && f.birdCount > 0).length === 0 && (
+                    <div className="text-center py-8 text-sm text-gray-400">
+                      <ClipboardList className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                      <p>No layer flocks found.</p>
+                      <p className="text-xs">Flocks added by the Farm Hand will appear here with their due vaccinations.</p>
+                    </div>
+                  )}
+                  {allFlocks.filter(f => f.birdType !== 'Layer').length > 0 && (
+                    <div className="text-center py-4 text-xs text-gray-400 mt-2">
+                      Non-layer flocks ({allFlocks.filter(f => f.birdType !== 'Layer').map(f => `${f.name}`).join(', ')}) are not shown — the standard schedule is for Bovan Brown layers.
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="health">
