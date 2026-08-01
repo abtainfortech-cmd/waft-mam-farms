@@ -102,9 +102,16 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, ...data } = body
-    // Don't allow direct birdCount override — it's managed by mortality/sales
-    delete (data as any).birdCount
+    const { id, updateBirdCount, ...data } = body
+    // If CEO sends updateBirdCount, allow overriding birdCount (e.g. adding birds to existing flock)
+    if (updateBirdCount !== undefined) {
+      data.birdCount = Math.max(0, parseInt(updateBirdCount) || 0)
+      // Also bump initialBirdCount if new count is higher
+      const existing = await db.birdFlock.findUnique({ where: { id } })
+      if (existing && data.birdCount > existing.initialBirdCount) {
+        data.initialBirdCount = data.birdCount
+      }
+    }
     const flock = await db.birdFlock.update({ where: { id }, data })
     return NextResponse.json(flock)
   } catch (error) {

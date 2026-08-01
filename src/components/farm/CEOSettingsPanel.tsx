@@ -422,6 +422,10 @@ function BirdFlockManager() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [expandedFarm, setExpandedFarm] = useState<string | null>(null)
+  // Edit flock
+  const [editFlock, setEditFlock] = useState<any>(null)
+  const [editCount, setEditCount] = useState('')
+  const [editNotes, setEditNotes] = useState('')
 
   // Add flock form
   const [addOpen, setAddOpen] = useState(false)
@@ -508,6 +512,37 @@ function BirdFlockManager() {
         fetchData()
       } else {
         toast.error('Failed to deactivate flock')
+      }
+    } catch { toast.error('Network error') } finally { setSaving(false) }
+  }
+
+  const handleEditFlock = (flock: any) => {
+    setEditFlock(flock)
+    setEditCount(String(flock.birdCount))
+    setEditNotes(flock.notes || '')
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editFlock || !editCount) return
+    const newCount = parseInt(editCount)
+    if (isNaN(newCount) || newCount < 0) { toast.error('Enter a valid bird count'); return }
+    setSaving(true)
+    try {
+      const res = await fetch('/api/flocks', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editFlock.id,
+          updateBirdCount: newCount,
+          notes: editNotes.trim() || undefined,
+        }),
+      })
+      if (res.ok) {
+        toast.success(`"${editFlock.name}" updated to ${newCount.toLocaleString()} birds`)
+        setEditFlock(null)
+        fetchData()
+      } else {
+        toast.error('Failed to update flock')
       }
     } catch { toast.error('Network error') } finally { setSaving(false) }
   }
@@ -724,6 +759,10 @@ function BirdFlockManager() {
                                     <p className="text-[10px] text-red-400">({flock.lossPercent}%)</p>
                                   </div>
                                 )}
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-blue-400 hover:text-blue-600 shrink-0"
+                                  onClick={() => handleEditFlock(flock)}>
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
                                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 shrink-0"
                                   onClick={() => handleDeactivateFlock(flock.id, flock.name)}>
                                   <Trash2 className="h-3 w-3" />
@@ -744,10 +783,45 @@ function BirdFlockManager() {
         <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-2.5">
           <p className="text-[11px] text-blue-800">
             <Bird className="h-3 w-3 inline mr-1" />
-            Bird counts auto-decrease when mortality or bird sales are recorded. Depletion = initial count minus current live count. Lay % = (eggs collected / layer birds) x 100.
+            Bird counts auto-decrease when mortality or bird sales are recorded. Click the pencil icon to adjust a flock's bird count. Depletion = initial count minus current live count. Lay % = (eggs collected / layer birds) x 100.
           </p>
         </div>
       </CardContent>
+
+      {/* Edit Flock Dialog */}
+      <Dialog open={!!editFlock} onOpenChange={(open) => { if (!open) setEditFlock(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit Flock: {editFlock?.name}</DialogTitle>
+            <DialogDescription>
+              {editFlock?.breed || editFlock?.birdType} &middot; {editFlock?.farm?.name || ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <div>
+              <Label className="text-xs">Current Bird Count</Label>
+              <p className="text-lg font-bold text-gray-700">{editFlock?.birdCount?.toLocaleString()}</p>
+              <p className="text-[10px] text-gray-400">Initial: {editFlock?.initialBirdCount?.toLocaleString()} &middot; Lost: {editFlock?.losses || 0}</p>
+            </div>
+            <div>
+              <Label className="text-xs">New Bird Count *</Label>
+              <Input type="number" min="0" value={editCount} onChange={e => setEditCount(e.target.value)} className="h-9 text-sm" placeholder="Enter new count" />
+              <p className="text-[10px] text-gray-400 mt-1">Use this to add birds to an existing flock or correct the count.</p>
+            </div>
+            <div>
+              <Label className="text-xs">Notes</Label>
+              <Input value={editNotes} onChange={e => setEditNotes(e.target.value)} className="h-9 text-sm" placeholder="Optional notes" />
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleSaveEdit} disabled={saving} className="flex-1 h-9">
+                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+                {saving ? 'Saving...' : 'Save Changes'}
+              </Button>
+              <Button variant="outline" onClick={() => setEditFlock(null)} className="h-9">Cancel</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }
