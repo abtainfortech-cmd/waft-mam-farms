@@ -39,3 +39,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create treatment', detail: error.message }, { status: 500 })
   }
 }
+
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { id, ...data } = body
+    if (!id) return NextResponse.json({ error: 'Treatment ID required' }, { status: 400 })
+    const treatment = await db.treatment.update({ where: { id }, data })
+    return NextResponse.json(treatment)
+  } catch (error: any) {
+    console.error('Treatment PUT error:', error.message)
+    return NextResponse.json({ error: 'Failed to update treatment', detail: error.message }, { status: 500 })
+  }
+}
